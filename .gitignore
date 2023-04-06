@@ -1,0 +1,14 @@
+/codeparrot-ds
+/hug_bert_train_self
+/hug_gpt_train_self
+/wikitext-*
+*.out
+/wiki*
+/book*
+/utils/wikitext-*
+*.arrow
+/out_dir
+**/__pycache__
+
+
+
