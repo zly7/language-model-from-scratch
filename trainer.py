@@ -24,8 +24,12 @@ class TrainerSelf():
         self.eval_dataset = eval_dataset
         # if self.frame == "pytorch": # 这个没意义
         # if args.whether_hg_accelerator: # 暂时完全用accelerator
+        if args.fp16 is True:
+            mix_precision = "fp16"
+        else:
+            mix_precision = "no"
         from accelerate import Accelerator
-        self.accelerator = Accelerator(device_placement=True,gradient_accumulation_steps=args.gradient_accumulation_steps)
+        self.accelerator = Accelerator(device_placement=True,gradient_accumulation_steps=args.gradient_accumulation_steps,mixed_precision=mix_precision)
         # self.device =  self.accelerator.cuda.current_device()
         print("self.accelerator.device : " + str(self.accelerator.device))
         self.device = self.accelerator.device
@@ -48,9 +52,10 @@ class TrainerSelf():
             self.test_dataloader = None
         
         if optimizer is None :
-            Warning("No optimizer is provided, using AdamW as default")
-            from transformers import AdamW
-            self.optimizer = AdamW(self.model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+            Warning("No optimizer is provided, using Adam as default")
+            from torch.optim import Adam
+            self.optimizer = Adam(self.model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2],eps=args.adam_epsilon)
+            # self.optimizer = AdamW(self.model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2])
         else:
             self.optimizer = optimizer
 
@@ -109,10 +114,10 @@ class TrainerSelf():
                         self.direct_log_scaler("train","train_example_per_second(example/s)",all_compute_grad_times, example_per_second) # 最核心关注速度指标，训练一个seque
                         self.time = time.time()
                         losses = []
-                    # if all_compute_grad_times % self.args.save_steps == 1:
-                    #     self.save_model(all_compute_grad_times)
-                    # if all_compute_grad_times % self.args.eval_steps == 1:
-                    #     self.evaluate(all_compute_grad_times)
+                    if all_compute_grad_times % self.args.save_steps == 1:
+                        self.save_model(all_compute_grad_times)
+                    if all_compute_grad_times % self.args.eval_steps == 1:
+                        self.evaluate(all_compute_grad_times)
                     if self.args.test_step is not None and all_compute_grad_times % self.args.test_step == 1:
                         self.test(all_compute_grad_times)
 
