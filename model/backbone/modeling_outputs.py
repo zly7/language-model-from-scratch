@@ -227,6 +227,9 @@ class CausalLMOutputWithCrossAttentions(ModelOutput):  # GPT2
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
     cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
+    all_keys: Optional[Tuple[torch.FloatTensor]] = None
+    all_queries: Optional[Tuple[torch.FloatTensor]] = None
+    all_values: Optional[Tuple[torch.FloatTensor]] = None
 
 
 
@@ -274,3 +277,19 @@ class BaseModelOutputWithPastAndCrossAttentions(ModelOutput):
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
     cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
+
+
+@dataclass
+class BaseAttentionOutput(ModelOutput):
+
+    x: torch.FloatTensor = None
+    attention: Optional[torch.FloatTensor] = None
+    keys:Optional[torch.FloatTensor] = None
+    queries:Optional[torch.FloatTensor] = None
+    values:Optional[torch.FloatTensor] = None
+    attentionBeforeSoftmaxAndMask:Optional[torch.FloatTensor] = None
+
+@dataclass
+class BaseBlockOutput(BaseAttentionOutput):
+    pass
+    

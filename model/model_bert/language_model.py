@@ -103,6 +103,7 @@ class BertLM(nn.Module):
         :param vocab_size: total vocab size
         """
         super().__init__()
+        self.config = config
         self.bert = BERTEncoder(config)
         
         self.linear = nn.Linear(config.n_embd, config.vocab_size)

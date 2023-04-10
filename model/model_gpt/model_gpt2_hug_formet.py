@@ -14,13 +14,13 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from ..backbone import modeling_outputs
+from ..backbone.modeling_outputs import CausalLMOutputWithCrossAttentions,BaseBlockOutput
 
 from ..backbone.bb_basic import LayerNorm, new_gelu, MLP
 from ..backbone.bb_attention import CausalSelfAttention,CosformerAttention
+import math
 
-
-class BidirectionalBlock(nn.Module):
+class CausalBlock(nn.Module):
 
     def __init__(self, config):
         super().__init__()
@@ -29,10 +29,18 @@ class BidirectionalBlock(nn.Module):
         self.ln_2 = LayerNorm(config.n_embd, bias=config.bias)
         self.mlp = MLP(config)
 
-    def forward(self, x):
-        x = x + self.attn(self.ln_1(x))
+    def forward(self, x)->BaseBlockOutput:
+        output = self.attn(self.ln_1(x))
+        x = x + output["x"]
         x = x + self.mlp(self.ln_2(x))
-        return x
+        return BaseBlockOutput(
+            x = x,
+            attention=output.attention,
+            keys=output.keys,
+            queries=output.queries,
+            values=output.values,
+            attentionBeforeSoftmaxAndMask=output.attentionBeforeSoftmaxAndMask,
+        )
 
 
 class cosFormerBlock(nn.Module):
@@ -59,6 +67,7 @@ class GPTConfig:
     dropout: float = 0.0
     bias: bool = True # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
     use_cosformer: bool = False
+    visualize: bool = False
 
 class GPT(nn.Module):
 
@@ -70,7 +79,7 @@ class GPT(nn.Module):
         if config.use_cosformer:
             temp_h = nn.ModuleList([cosFormerBlock(config) for _ in range(config.n_layer)])
         else:
-            temp_h = nn.ModuleList([BidirectionalBlock(config) for _ in range(config.n_layer)])
+            temp_h = nn.ModuleList([CausalBlock(config) for _ in range(config.n_layer)])
 
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(config.vocab_size, config.n_embd),
@@ -131,8 +140,18 @@ class GPT(nn.Module):
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos) # position embeddings of shape (1, t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
-        for block in self.transformer.h:
-            x = block(x)
+        all_attentions_tuple = () if self.config.visualize is True else None
+        all_keys_tuple = () if self.config.visualize is True else None
+        all_queries_tuple = () if self.config.visualize is True else None
+        all_values_tuple = () if self.config.visualize is True else None
+        for block in self.transformer.h: 
+            output = block(x)
+            x = output.x
+            if self.config.visualize is True:
+                all_attentions_tuple = all_attentions_tuple + (output.attention,)
+                all_keys_tuple = all_keys_tuple + (output.keys,)
+                all_queries_tuple = all_queries_tuple + (output.queries,)
+                all_values_tuple = all_values_tuple + (output.values,)
         x = self.transformer.ln_f(x)
 
         if targets is not None:
@@ -145,11 +164,20 @@ class GPT(nn.Module):
             logits = self.lm_head(x[:, [-1], :]) # note: using list [-1] to preserve the time dim
             loss = None
         
-
-        return modeling_outputs.CausalLMOutputWithCrossAttentions(
-            logits=logits,
-            loss=loss,
-        )
+        if self.config.visualize:
+            return CausalLMOutputWithCrossAttentions(
+                logits=logits,
+                loss=loss,
+                attentions=all_attentions_tuple,
+                all_keys= all_keys_tuple,
+                all_queries=all_queries_tuple,
+                all_values=all_values_tuple,
+            )
+        else:
+            return CausalLMOutputWithCrossAttentions(
+                logits=logits,
+                loss=loss,
+            )
     
 
     def crop_block_size(self, block_size):

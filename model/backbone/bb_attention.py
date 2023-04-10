@@ -8,6 +8,7 @@ from torch import Tensor
 from typing import Optional
 from torch import nn
 import numpy as np
+from .modeling_outputs import BaseAttentionOutput
 
 class CausalSelfAttention(nn.Module):
 
@@ -26,6 +27,7 @@ class CausalSelfAttention(nn.Module):
         self.dropout = config.dropout
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
+        self.visualize  = config.visualize
         if not self.flash:
             print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
             # causal mask to ensure that attention is only applied to the left in the input sequence
@@ -49,14 +51,23 @@ class CausalSelfAttention(nn.Module):
             # manual implementation of attention
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
             att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
-            att = F.softmax(att, dim=-1)
-            att = self.attn_dropout(att)
+            att_after_softmax = F.softmax(att, dim=-1)
+            att = self.attn_dropout(att_after_softmax)
             y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
         # output projection
         y = self.resid_dropout(self.c_proj(y))
-        return y
+        if self.visualize:
+            return BaseAttentionOutput(
+                x = y,
+                attention = att_after_softmax,
+                queries=q,
+                keys=k,
+                values=v
+            )
+        else:
+            return BaseAttentionOutput(x=y)
 
 
 class BidirectionalSelfAttention(nn.Module):

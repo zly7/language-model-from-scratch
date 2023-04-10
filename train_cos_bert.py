@@ -28,6 +28,7 @@ def main():
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
     gradient_ac = 10
+    max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
         output_dir=f"hug_bert_train_self/{date_string}/",
         per_device_train_batch_size=20,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
@@ -35,13 +36,13 @@ def main():
         eval_steps=1000 * gradient_ac,
         logging_steps=20 * gradient_ac,
         gradient_accumulation_steps=gradient_ac,
-        max_steps=13000*5 * gradient_ac,   
+        max_steps=max_steps,   
         num_train_epochs=20,  # 一个epoch差不多是1H，2GPU
         weight_decay=0.01,
         adam_beta1 = 0.9,
         adam_beta2 = 0.999,
         adam_epsilon = 1e-6,
-        warmup_steps=1_00 * gradient_ac,
+        warmup_steps=200 * gradient_ac,
         lr_scheduler_type="cosine",
         learning_rate=3e-4,
         save_steps=1_000 * gradient_ac,

@@ -7,6 +7,10 @@ import random
 import json
 import os
 import time
+import math
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
 class TrainerSelf():
     def __init__(self, model_name, model, args : TrainingArgumentsSelf, train_dataset, eval_dataset, test_dataset=None,
         tokenizer=None, data_collator=None,
@@ -123,6 +127,7 @@ class TrainerSelf():
 
                     if all_compute_grad_times >= self.args.max_steps:
                         break
+            self.accelerator.save_state(output_dir=os.join(self.args.output_dir, f"checkpoint-epoch-accelerate-save-state-{epoch}"), state=self.state)
             if all_compute_grad_times >= self.args.max_steps:
                 break
                         
@@ -163,6 +168,42 @@ class TrainerSelf():
         self.model.eval()
         answer = []
         uw_model = self.accelerator.unwrap_model(self.model)
+        if "visualize" in self.model_name and "gpt" in self.model_name:
+            visualize_dir = os.join(self.args.output_dir,"visualize")
+            assert uw_model.config.visualize == True
+            for step, batch in enumerate(self.test_dataloader):
+                outputs = uw_model(batch["input_ids"], labels=batch["input_ids"])
+                layers_num = len(outputs.attentions)
+                batch,heads_num,sequence_l,_sequence_l = outputs.attentions[0].shape
+                _batch,_heads_num,_sequence_l,embadding_size = outputs.keys[0].shape
+                
+                assert batch == _batch
+                assert heads_num == _heads_num
+                for i in range(len(batch)):
+                    q = outputs.queries[i]
+                    k = outputs.keys[i]
+                    att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(embadding_size))
+                    for j in range(len(heads_num)):
+                        plt.figure(figsize=(50, 50))
+                        sns.heatmap(outputs.attentions[i][j].detach().numpy(), cmap='YlGnBu', annot=True)
+                        plt.xticks(np.arange(0, sequence_l, 25))
+                        plt.yticks(np.arange(0, sequence_l, 25))
+                        # 保存图像
+                        plt.savefig(os.join(visualize_dir,f"batch_{step}_index_{i}_heads_{j}_attention.png"))
+                        plt.cla()
+                    
+                    for j in range(len(heads_num)):
+                        plt.figure(figsize=(50, 50))
+                        sns.heatmap(att[i][j].detach().numpy(), cmap='YlGnBu', annot=True)
+                        plt.xticks(np.arange(0, sequence_l, 25))
+                        plt.yticks(np.arange(0, sequence_l, 25))
+                        # 保存图像
+                        plt.savefig(os.join(visualize_dir,f"batch_{step}_index_{i}_heads_{j}_attention_before_softmax.png"))
+                        plt.cla()
+
+
+
+                
         if "gpt" in self.model_name:
             for step, batch in enumerate(self.test_dataloader):
                 if step*self.args.per_device_test_batch_size > self.args.all_test_examples_num:
