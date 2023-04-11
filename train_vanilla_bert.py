@@ -1,29 +1,30 @@
-# 对应model-gpt2-hug-format
 
 from datasets import load_dataset, DatasetDict, load_from_disk
+from model.model_bert.language_model import  BertConfig,BertLM
+# 这句话访问不到是没有访问到module,需要在__init__.py里面引入，可以想象成__init__.py是本体
+# from model.model_bert.bert import BERTs
+# from model.model_bert.language_model import BERTLM
+from transformers import AutoTokenizer
 import torch
 def main():
     print("Loading dataset")
-    preprocessed_splits = load_from_disk("wikitext-103-preprocessed-ws-notext-gpt2-128-wtest-v2")
-    print("train length :", len(preprocessed_splits["train"]))
-    # print("preprocessed_splits train : ", len(preprocessed_splits["train"][0]["input_ids"]))
-    # print("preprocessed_splits test : ", len(preprocessed_splits["test"][0]))
-    from model.model_gpt.model_gpt2_hug_formet import GPT, GPTConfig
-    from transformers import GPT2Tokenizer
-    tokenizer = GPT2Tokenizer.from_pretrained("./tokenizer_save/tokenizer-gpt2-128")
-    print("vocab_size for GPT2",str(len(tokenizer)))
-    config = GPTConfig(n_embd=512, n_layer=8, n_head=8, block_size=128,bias=False,vocab_size=len(tokenizer))
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-bert-512-without-test")
+    tokenizer = AutoTokenizer.from_pretrained("./tokenizer_save/tokenizer-bert-base-uncased-512")
+    print("tokenizer:",str(tokenizer))
 
-    model = GPT(config)
-    # model.load_state_dict(torch.load("./hug_gpt_train_self/03-30-17-03/checkpoint-20001/pretrain_weight.pt"))
-
+    # Create the model
+    config = BertConfig(vocab_size=tokenizer.vocab_size, n_embd=768, 
+                n_layers=12, n_head=12, dropout=0.1, use_cosformer=False)
+    LMmodel = BertLM(config)
+    model_size = sum(t.numel() for t in LMmodel.parameters())
+    print(f"Bert size: {model_size/1000**2:.1f}M parameters")
     from transformers import DataCollatorForLanguageModeling
 
+    # LMmodel.load_state_dict(torch.load("./hug_bert_train_self/04-05-11-55/checkpoint-13576/pretrain_weight.pt"))
 
     # Create the data collator
-    # data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False) # 用这个反而肯定要pad
-    # data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=True, mlm_probability=0.2) # 这个到这里会报错
-    from transformers import Trainer
+    # data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
+    data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=True, mlm_probability=0.15)
     from TrainArgumentSelf import TrainingArgumentsSelf
     import datetime
     now = datetime.datetime.now()
@@ -31,7 +32,7 @@ def main():
     gradient_ac = 10
     max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
-        output_dir=f"vanilla_gpt_pretrain/{date_string}/",
+        output_dir=f"vanilla_bert_pretrain/{date_string}/",
         per_device_train_batch_size=20,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=32,
         eval_steps=1000 * gradient_ac,
@@ -58,14 +59,14 @@ def main():
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(
-        model_name="self gpt",
-        model=model,
+        model_name="self bert",
+        model=LMmodel,
         tokenizer=tokenizer,
         args=args,
-        data_collator=None,
+        data_collator=data_collator,
         train_dataset=preprocessed_splits["train"],
         eval_dataset=preprocessed_splits["validation"],
-        test_dataset=preprocessed_splits["test"]
+        test_dataset=preprocessed_splits["validation"]
     )
     print("Training model starts")
     trainer.train()
@@ -73,5 +74,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 

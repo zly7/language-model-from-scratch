@@ -4,7 +4,7 @@ from datasets import load_dataset, DatasetDict, load_from_disk
 import torch
 def main():
     print("Loading dataset")
-    preprocessed_splits = load_from_disk("wikitext-103-preprocessed-ws-notext-gpt2-128-wtest-v2")
+    preprocessed_splits = load_from_disk("./processed_datatdir/wikitext-103-preprocessed-ws-notext-gpt2-128-wtest-v2")
     print("train length :", len(preprocessed_splits["train"]))
     # print("preprocessed_splits train : ", len(preprocessed_splits["train"][0]["input_ids"]))
     # print("preprocessed_splits test : ", len(preprocessed_splits["test"][0]))
@@ -28,25 +28,33 @@ def main():
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
+    gradient_ac = 10
+    max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
-        output_dir=f"hug_gpt_train_self/{date_string}/",
-        per_device_train_batch_size=8,  # wikitext103 在这个128content_length下，batch_size=8,有10万step
-        per_device_eval_batch_size=16,
-        eval_steps=5_000,
-        logging_steps=500,
-        gradient_accumulation_steps=4,
-        num_train_epochs=2,
-        weight_decay=0.1,
-        warmup_steps=1_000,
+        output_dir=f"cos_gpt_pretrain/{date_string}/",
+        per_device_train_batch_size=20,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
+        per_device_eval_batch_size=32,
+        eval_steps=1000 * gradient_ac,
+        logging_steps=20 * gradient_ac,
+        gradient_accumulation_steps=gradient_ac,
+        max_steps=max_steps,   
+        num_train_epochs=20,  # 一个epoch差不多是1H，2GPU
+        weight_decay=0.01,
+        adam_beta1 = 0.9,
+        adam_beta2 = 0.999,
+        adam_epsilon = 1e-6,
+        warmup_steps=200 * gradient_ac,
         lr_scheduler_type="cosine",
-        learning_rate=1e-3,  # 3e-3炸了
-        save_steps=5_000,
-        fp16=True,
+        learning_rate=3e-4,
+        save_steps=1_000 * gradient_ac,
+        fp16=False,
         report_to="tensorboard",
-        test_step=5000,
-        per_device_test_batch_size=32,
+        train_audit_probability=0,
+        test_step=10000*gradient_ac,
+        per_device_test_batch_size=8,
         all_test_examples_num=256,
-        train_audit_probability=0.0003,
+        test_dataloader_use_accelerate=True,
+        
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(

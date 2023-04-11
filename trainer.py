@@ -127,7 +127,7 @@ class TrainerSelf():
 
                     if all_compute_grad_times >= self.args.max_steps:
                         break
-            self.accelerator.save_state(output_dir=os.join(self.args.output_dir, f"checkpoint-epoch-accelerate-save-state-{epoch}"), state=self.state)
+            self.accelerator.save_state(output_dir=os.path.join(self.args.output_dir, f"checkpoint-epoch-accelerate-save-state-{epoch}"), state=self.state)
             if all_compute_grad_times >= self.args.max_steps:
                 break
                         
@@ -169,7 +169,7 @@ class TrainerSelf():
         answer = []
         uw_model = self.accelerator.unwrap_model(self.model)
         if "visualize" in self.model_name and "gpt" in self.model_name:
-            visualize_dir = os.join(self.args.output_dir,"visualize")
+            visualize_dir = os.path.join(self.args.output_dir,"visualize")
             assert uw_model.config.visualize == True
             for step, batch in enumerate(self.test_dataloader):
                 outputs = uw_model(batch["input_ids"], labels=batch["input_ids"])
@@ -189,7 +189,7 @@ class TrainerSelf():
                         plt.xticks(np.arange(0, sequence_l, 25))
                         plt.yticks(np.arange(0, sequence_l, 25))
                         # 保存图像
-                        plt.savefig(os.join(visualize_dir,f"batch_{step}_index_{i}_heads_{j}_attention.png"))
+                        plt.savefig(os.path.join(visualize_dir,f"batch_{step}_index_{i}_heads_{j}_attention.png"))
                         plt.cla()
                     
                     for j in range(len(heads_num)):
@@ -198,7 +198,7 @@ class TrainerSelf():
                         plt.xticks(np.arange(0, sequence_l, 25))
                         plt.yticks(np.arange(0, sequence_l, 25))
                         # 保存图像
-                        plt.savefig(os.join(visualize_dir,f"batch_{step}_index_{i}_heads_{j}_attention_before_softmax.png"))
+                        plt.savefig(os.path.join(visualize_dir,f"batch_{step}_index_{i}_heads_{j}_attention_before_softmax.png"))
                         plt.cla()
 
 

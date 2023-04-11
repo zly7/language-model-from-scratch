@@ -10,6 +10,13 @@
 /out_dir
 **/__pycache__
 model_save/
+*.pt
+/vanilla_*
+#保留生成数据集的ipynb#
+# /processed_datadir/
+#不能像上面那么写
+/processed_datadir/*/*
+!/processed_datadir/*/*.ipynb
 
 
 

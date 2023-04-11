@@ -21,6 +21,15 @@
             "args": ["--config_file","acce_config.yaml","train_hug_bert.py"], 
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "visualize",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_1GPU.yaml","visualize-vanilla-gpt.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

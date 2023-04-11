@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 import torch
 def main():
     print("Loading dataset")
-    preprocessed_splits = load_from_disk("wikitext-103-bert-512-without-test")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-bert-512-without-test")
     tokenizer = AutoTokenizer.from_pretrained("./tokenizer_save/tokenizer-bert-base-uncased-512")
     print("tokenizer:",str(tokenizer))
 
@@ -30,7 +30,7 @@ def main():
     gradient_ac = 10
     max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
-        output_dir=f"hug_bert_train_self/{date_string}/",
+        output_dir=f"vanilla_bert_pretrain/{date_string}/",
         per_device_train_batch_size=20,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=32,
         eval_steps=1000 * gradient_ac,

@@ -1,4 +1,4 @@
-# 这个是废弃的log版本，现在用的是accelerate的log
+# 这个是废弃的log版本，现在用的是accelerate的log,后来还是选择自己log,更加灵活
 import torch
 from typing import Optional
 from TrainArgumentSelf import TrainingArgumentsSelf

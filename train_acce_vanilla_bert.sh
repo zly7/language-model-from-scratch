@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o job.%j.out          # 脚本执行的输出将被保存在当job.%j.out文件下，%j表示作业号;
+#SBATCH -o job.%j-train-vanilla-bert.out          # 脚本执行的输出将被保存在当job.%j.out文件下，%j表示作业号;
 #SBATCH --partition=gpulab02      
 #SBATCH --qos=gpulab02             # 指定作业的QOS
 #SBATCH -J zly       # 作业在调度系统中的作业名为myFirstJob;
@@ -7,4 +7,5 @@
 #SBATCH --ntasks-per-node=6    # 每个节点上运行一个任务，默认一情况下也可理解为每个节点使用一个核心；
 #SBATCH --gres=gpu:2           # 指定作业的需要的GPU卡数量，集群不一样，注意最大限制; 
 #SBATCH --nodelist=gpu029
-accelerate launch --config_file acce_config.yaml train_hug_bert.py
+nvidia-smi
+accelerate launch --config_file acce_config.yaml train_vanilla_bert.py
