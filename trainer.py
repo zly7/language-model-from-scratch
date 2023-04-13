@@ -209,9 +209,10 @@ class TrainerSelf():
                 if step*self.args.per_device_test_batch_size > self.args.all_test_examples_num:
                     break
                 batch["input_ids"] = batch["input_ids"].to(self.accelerator.device)
+                prediction_label_length = batch["prediction_labels"].shape[1]
                 with torch.no_grad():
                     if "gpt" in self.model_name or "causal" in self.model_name:
-                        outputs_ids = uw_model.generate(batch["input_ids"], max_new_tokens=128, top_k = 7)
+                        outputs_ids = uw_model.generate(batch["input_ids"], max_new_tokens=prediction_label_length, top_k = 7)
                     else:
                         Warning("Not Implement")
                 b,t=batch["input_ids"].shape
@@ -219,7 +220,7 @@ class TrainerSelf():
                     one_answer_dic = {}
                     one_answer_dic["propmt text"] = self.tokenizer.decode(batch["input_ids"][i])
                     one_answer_dic["generated text"] = self.tokenizer.decode(outputs_ids[i])
-                    one_answer_dic["origin answer"] = self.tokenizer.decode(batch["overflowing_tokens"][i])
+                    one_answer_dic["origin answer"] = self.tokenizer.decode(batch["prediction_labels"][i])
                     answer.append(one_answer_dic)
         elif "bert" in self.model_name:
             for step, batch in enumerate(self.test_dataloader):

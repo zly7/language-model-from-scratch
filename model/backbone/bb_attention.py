@@ -67,7 +67,8 @@ class CausalSelfAttention(nn.Module):
                 values=v
             )
         else:
-            return BaseAttentionOutput(x=y)
+            return BaseAttentionOutput(x = y)
+
 
 
 class BidirectionalSelfAttention(nn.Module):

@@ -98,7 +98,7 @@ class ModelOutput(OrderedDict):
             return self.to_tuple()[k]
 
     def __setattr__(self, name, value):
-        if name in self.keys() and value is not None:
+        if name in super().keys() and value is not None: # 原本的super()是self
             # Don't call self.__setitem__ to avoid recursion errors
             super().__setitem__(name, value)
         super().__setattr__(name, value)
@@ -115,7 +115,8 @@ class ModelOutput(OrderedDict):
         """
         return tuple(self[k] for k in self.keys())
 
-
+@dataclass
+class NotKnown:
     """
     Base class for causal language model (or autoregressive) outputs.
 
@@ -281,7 +282,7 @@ class BaseModelOutputWithPastAndCrossAttentions(ModelOutput):
 
 @dataclass
 class BaseAttentionOutput(ModelOutput):
-
+    
     x: torch.FloatTensor = None
     attention: Optional[torch.FloatTensor] = None
     keys:Optional[torch.FloatTensor] = None
@@ -290,6 +291,11 @@ class BaseAttentionOutput(ModelOutput):
     attentionBeforeSoftmaxAndMask:Optional[torch.FloatTensor] = None
 
 @dataclass
-class BaseBlockOutput(BaseAttentionOutput):
-    pass
+class BaseBlockOutput(ModelOutput):
+    x: torch.FloatTensor = None
+    attention: Optional[torch.FloatTensor] = None
+    keys:Optional[torch.FloatTensor] = None
+    queries:Optional[torch.FloatTensor] = None
+    values:Optional[torch.FloatTensor] = None
+    attentionBeforeSoftmaxAndMask:Optional[torch.FloatTensor] = None
     

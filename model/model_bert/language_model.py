@@ -12,7 +12,7 @@ import torch
 class BertConfig:
     block_size: int = 1024
     vocab_size: int = 50304 
-    n_layers: int = 12
+    n_layer: int = 12
     n_head: int = 12
     n_embd: int = 768
     dropout: float = 0.0
@@ -72,10 +72,10 @@ class BERTEncoder(nn.Module):
         # multi-layers transformer blocks, deep network
         if config.use_cosformer:
             self.transformer_blocks = nn.ModuleList(
-                [cosFormerBlock(config) for _ in range(config.n_layers)])
+                [cosFormerBlock(config) for _ in range(config.n_layer)])
         else:
             self.transformer_blocks = nn.ModuleList(
-                [BidirectionalBlock(config) for _ in range(config.n_layers)])
+                [BidirectionalBlock(config) for _ in range(config.n_layer)])
 
     def forward(self, x, segment_info,attn_mask=None):
         # embedding the indexed sequence to sequence of vectors

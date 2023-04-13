@@ -8,8 +8,8 @@ from transformers import AutoTokenizer
 import torch
 def main():
     print("Loading dataset")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-bert-512-without-test")
-    tokenizer = AutoTokenizer.from_pretrained("./tokenizer_save/tokenizer-bert-base-uncased-512")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
+    tokenizer = AutoTokenizer.from_pretrained("./tokenizer_save/tokenizer-bert-base-uncased-128")
     print("tokenizer:",str(tokenizer))
 
     # Create the model
@@ -29,12 +29,12 @@ def main():
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
-    gradient_ac = 10
+    gradient_ac = 4
     max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
         output_dir=f"vanilla_bert_pretrain/{date_string}/",
-        per_device_train_batch_size=20,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
-        per_device_eval_batch_size=32,
+        per_device_train_batch_size=64,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
+        per_device_eval_batch_size=64,
         eval_steps=1000 * gradient_ac,
         logging_steps=20 * gradient_ac,
         gradient_accumulation_steps=gradient_ac,
@@ -46,16 +46,15 @@ def main():
         adam_epsilon = 1e-6,
         warmup_steps=200 * gradient_ac,
         lr_scheduler_type="cosine",
-        learning_rate=3e-4,
+        learning_rate=1e-3,
         save_steps=1_000 * gradient_ac,
         fp16=True,
         report_to="tensorboard",
         train_audit_probability=0,
-        test_step=10000*gradient_ac,
+        test_step=5000*gradient_ac,
         per_device_test_batch_size=8,
         all_test_examples_num=256,
         test_dataloader_use_accelerate=True,
-        
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(

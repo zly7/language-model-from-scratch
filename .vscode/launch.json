@@ -9,16 +9,16 @@
             "type": "python",
             "request": "launch",
             "module": "accelerate.commands.launch",
-            "args": ["--config_file","acce_config.yaml","train_nanoGPT.py"], 
+            "args": ["--config_file","acce_config_1GPU.yaml","train_nanoGPT.py"], 
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": false
         },
         {
             "name": "hug_format_bert_py",
             "type": "python",
             "request": "launch",
             "module": "accelerate.commands.launch",
-            "args": ["--config_file","acce_config.yaml","train_hug_bert.py"], 
+            "args": ["--config_file","acce_config_1GPU.yaml","train_hug_bert.py"], 
             "console": "integratedTerminal",
             "justMyCode": true
         },

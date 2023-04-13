@@ -4,31 +4,27 @@ from datasets import load_dataset, DatasetDict, load_from_disk
 import torch
 def main():
     print("Loading dataset")
-    preprocessed_splits = load_from_disk("wikitext-103-preprocessed-ws-notext-gpt2-128-wtest-v2")
+    # preprocessed_splits = load_from_disk("wikitext-103-preprocessed-ws-notext-gpt2-128-wtest-v2")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-gpt2-story-train512-test256")
     print("train length :", len(preprocessed_splits["train"]))
     # print("preprocessed_splits train : ", len(preprocessed_splits["train"][0]["input_ids"]))
     # print("preprocessed_splits test : ", len(preprocessed_splits["test"][0]))
     from model.model_gpt.model_gpt2_hug_formet import GPT, GPTConfig
     from transformers import GPT2Tokenizer
-    tokenizer = GPT2Tokenizer.from_pretrained("./tokenizer_save/tokenizer-gpt2-128")
+    tokenizer = GPT2Tokenizer.from_pretrained("./tokenizer_save/tokenizer-gpt2-512")
     print("vocab_size for GPT2",str(len(tokenizer)))
-    config = GPTConfig(n_embd=512, n_layer=8, n_head=8, block_size=128,bias=False,vocab_size=len(tokenizer))
+    config = GPTConfig(vocab_size=tokenizer.vocab_size, n_embd=768, 
+                n_layer=12, n_head=12, dropout=0.1, use_cosformer=False)
 
     model = GPT(config)
     # model.load_state_dict(torch.load("./hug_gpt_train_self/03-30-17-03/checkpoint-20001/pretrain_weight.pt"))
 
-    from transformers import DataCollatorForLanguageModeling
-
-
-    # Create the data collator
-    # data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False) # 用这个反而肯定要pad
-    # data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=True, mlm_probability=0.2) # 这个到这里会报错
     from transformers import Trainer
     from TrainArgumentSelf import TrainingArgumentsSelf
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
-    gradient_ac = 10
+    gradient_ac = 4
     max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
         output_dir=f"vanilla_gpt_pretrain/{date_string}/",
@@ -51,10 +47,9 @@ def main():
         report_to="tensorboard",
         train_audit_probability=0,
         test_step=10000*gradient_ac,
-        per_device_test_batch_size=8,
-        all_test_examples_num=256,
+        per_device_test_batch_size=32,
+        all_test_examples_num=128,
         test_dataloader_use_accelerate=True,
-        
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(
