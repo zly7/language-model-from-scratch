@@ -17,6 +17,8 @@ model_save/
 #不能像上面那么写
 /processed_datadir/*/*
 !/processed_datadir/*/*.ipynb
+/hug_gpt_pretrain
+/hug_gpt_pretrain_hug_trainer
 
 
 

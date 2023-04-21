@@ -13,9 +13,9 @@ def main():
     from transformers import GPT2LMHeadModel,GPT2Tokenizer
     tokenizer = GPT2Tokenizer.from_pretrained("./tokenizer_save/tokenizer-gpt2-512")
     print("vocab_size for GPT2",str(len(tokenizer)))
-    model_hf = GPT2LMHeadModel.from_pretrained("./model_save/gpt2-finetuned-wikitext103")
-    model = GPT.from_pretrained('gpt2',override_args=None,model_hf=model_hf)
-    # model.load_state_dict(torch.load("./hug_gpt_train_self/03-30-17-03/checkpoint-20001/pretrain_weight.pt"))
+    model = GPT2LMHeadModel.from_pretrained("./model_save/gpt2-finetuned-wikitext103")
+    model.config.visualize = True
+
 
 
     from TrainArgumentSelf import TrainingArgumentsSelf
@@ -52,7 +52,7 @@ def main():
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(
-        model_name="self gpt visualize",
+        model_name="huggingface gpt visualize",
         model=model,
         tokenizer=tokenizer,
         args=args,

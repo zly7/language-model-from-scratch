@@ -30,6 +30,22 @@
             "args": ["--config_file","acce_config_1GPU.yaml","visualize-vanilla-gpt.py"], 
             "console": "integratedTerminal",
             "justMyCode": true
-        }
+        },{
+            "name": "hug-GPT_py",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_1GPU.yaml","train_hug_gpt.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },{
+            "name": "visualize-hug-gpt",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_1GPU.yaml","visualize_hug_gpt.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
     ]
 }

@@ -4,30 +4,29 @@ from datasets import load_dataset, DatasetDict, load_from_disk
 import torch
 def main():
     print("Loading dataset")
-    # preprocessed_splits = load_from_disk("wikitext-103-preprocessed-ws-notext-gpt2-128-wtest-v2")
-    # print("train length :", len(preprocessed_splits["train"]))
-    # print("preprocessed_splits train : ", len(preprocessed_splits["train"][0]["input_ids"]))
-    # print("preprocessed_splits test : ", len(preprocessed_splits["test"][0]))
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-prepro-gpt2-512-wo-train-for-visualize")
-    from model.model_gpt.model_gpt2_hug_formet import GPT, GPTConfig
-    from transformers import GPT2LMHeadModel,GPT2Tokenizer
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-gpt2-story-train512-test256")
+    print("train length :", len(preprocessed_splits["train"]))
+    
+    from transformers import GPT2Tokenizer
     tokenizer = GPT2Tokenizer.from_pretrained("./tokenizer_save/tokenizer-gpt2-512")
-    print("vocab_size for GPT2",str(len(tokenizer)))
-    model_hf = GPT2LMHeadModel.from_pretrained("./model_save/gpt2-finetuned-wikitext103")
-    model = GPT.from_pretrained('gpt2',override_args=None,model_hf=model_hf)
+    tokenizer.eos_token_id = tokenizer.pad_token_id
+    from transformers import GPT2Config
+    config = GPT2Config(vocab_size=tokenizer.vocab_size, n_embd=768, 
+                n_layer=12, n_head=12)
+    from transformers import GPT2LMHeadModel
+    model = GPT2LMHeadModel(config)
     # model.load_state_dict(torch.load("./hug_gpt_train_self/03-30-17-03/checkpoint-20001/pretrain_weight.pt"))
-
 
     from TrainArgumentSelf import TrainingArgumentsSelf
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
-    gradient_ac = 10
+    gradient_ac = 6
     max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
-        output_dir=f"vanilla_gpt_pretrain/{date_string}/",
-        per_device_train_batch_size=20,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
-        per_device_eval_batch_size=32,
+        output_dir=f"hug_gpt_pretrain/{date_string}/",
+        per_device_train_batch_size=12,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
+        per_device_eval_batch_size=24,
         eval_steps=1000 * gradient_ac,
         logging_steps=20 * gradient_ac,
         gradient_accumulation_steps=gradient_ac,
@@ -45,25 +44,23 @@ def main():
         report_to="tensorboard",
         train_audit_probability=0,
         test_step=10000*gradient_ac,
-        per_device_test_batch_size=8,
-        all_test_examples_num=256,
+        per_device_test_batch_size=32,
+        all_test_examples_num=0,
         test_dataloader_use_accelerate=True,
-        
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(
-        model_name="self gpt visualize",
+        model_name="huggingface gpt",
         model=model,
         tokenizer=tokenizer,
         args=args,
         data_collator=None,
-        train_dataset=preprocessed_splits["validation"],
+        train_dataset=preprocessed_splits["train"],
         eval_dataset=preprocessed_splits["validation"],
-        test_dataset=preprocessed_splits["validation"]
+        test_dataset=preprocessed_splits["test"]
     )
     print("Training model starts")
-    # trainer.evaluate(0)
-    trainer.test(0)
+    trainer.train()
 
 
 if __name__ == "__main__":

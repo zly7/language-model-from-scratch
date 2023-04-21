@@ -95,13 +95,17 @@ class TrainerSelf():
             self.time = time.time()
             for step, batch in enumerate(self.train_dataloader):
                 with self.accelerator.accumulate(self.model):
+                    self.optimizer.zero_grad()
                     outputs = self.forward_core(batch)
                     loss = outputs[0] # loss = outputs.loss loss = output[0]
                     losses.append(loss)
                     self.accelerator.backward(loss)
+                    if self.accelerator.sync_gradients:
+                        self.accelerator.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
                     self.optimizer.step()
                     self.lr_scheduler.step()
-                    self.optimizer.zero_grad()
+                    self.direct_log_grad(all_compute_grad_times)
+
                     all_compute_grad_times += 1
                     if step % self.args.gradient_accumulation_steps == 0:
                         completed_steps += 1
@@ -204,7 +208,7 @@ class TrainerSelf():
 
 
                 
-        if "gpt" in self.model_name:
+        if "gpt" in self.model_name and "visualize" not in self.model_name:
             for step, batch in enumerate(self.test_dataloader):
                 if step*self.args.per_device_test_batch_size > self.args.all_test_examples_num:
                     break
@@ -262,7 +266,7 @@ class TrainerSelf():
         return None
 
 
-    def average_log_scaler(self, stage, name, step, scalers):
+    def average_log_scaler(self, stage, name, step, scalers, whether_print = True):
         if self.accelerator.is_main_process:
             try:
                 to_log = torch.mean(torch.cat(scalers))
@@ -272,11 +276,12 @@ class TrainerSelf():
             #     perplexity = torch.exp(loss)
             # except OverflowError:
             #     perplexity = float("inf")
-            print(f"Stage {stage}, Step {step}: {name}={to_log.item()}")
+            if whether_print:
+                print(f"Stage {stage}, Step {step}: {name}={to_log.item()}")
             self.logger.log_scaler(f"{name}/{stage}", to_log, step)
             # self.logger.log_scaler(f"{name}-Perplexity/{stage}", perplexity, step)
     
-    def direct_log_scaler(self, stage, name, step, scaler):
+    def direct_log_scaler(self, stage, name, step, scaler, whether_print = True):
         if self.accelerator.is_main_process:
             try:
                 if len(scaler) == 1:
@@ -285,8 +290,8 @@ class TrainerSelf():
                     Warning("the scaler should be one number")
             except:
                 pass
-            
-            print(f"Stage {stage}, Step {step}: {name}={scaler}")
+            if whether_print:
+                print(f"Stage {stage}, Step {step}: {name}={scaler}")
             self.logger.log_scaler(f"{name}/{stage}", scaler, step)
     
     def save_model(self, step):
@@ -297,6 +302,10 @@ class TrainerSelf():
             with open(f"{self.args.output_dir}/checkpoint-{step}/training_args.json","w") as f:
                 json.dump(self.args.to_dict(), f)
             print(f"Saving model checkpoint to {self.args.output_dir}/checkpoint-{step}")
+    
+    def direct_log_grad(self,step):
+        for name, param in self.model.named_parameters():
+            self.direct_log_scaler(stage="grad",name = name, step=step, scaler=torch.norm(param.grad),whether_print=False)
     
     def print_debug_info(self,stage:str,outputs,batch,completed_steps):
         if self.accelerator.is_main_process:
