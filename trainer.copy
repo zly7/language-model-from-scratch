@@ -27,20 +27,19 @@ class TrainerSelf():
         self.train_dataset = train_dataset
         self.eval_dataset = eval_dataset
         # if self.frame == "pytorch": # 这个没意义
-
-
+        # if args.whether_hg_accelerator: # 暂时完全用accelerator
         if args.fp16 is True:
             mix_precision = "fp16"
         else:
             mix_precision = "no"
-        if self.args.whether_hg_accelerator: 
-            from accelerate import Accelerator
-            self.accelerator = Accelerator(device_placement=True,gradient_accumulation_steps=args.gradient_accumulation_steps,mixed_precision=mix_precision)
-            # self.device =  self.accelerator.cuda.current_device()
-            print("self.accelerator.device : " + str(self.accelerator.device))
-            self.device = self.accelerator.device
-        else:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        from accelerate import Accelerator
+        self.accelerator = Accelerator(device_placement=True,gradient_accumulation_steps=args.gradient_accumulation_steps,mixed_precision=mix_precision)
+        # self.device =  self.accelerator.cuda.current_device()
+        print("self.accelerator.device : " + str(self.accelerator.device))
+        self.device = self.accelerator.device
+        # else:
+        #     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        #     self.model.to(self.device)
         
         from torch.utils.data.dataloader import DataLoader
         train_dataset.set_format("torch")
@@ -51,19 +50,16 @@ class TrainerSelf():
         if test_dataset is not None:
             test_dataset.set_format("torch") #zly: we don't use collate_fn for test which are not trauncated,这里实际上应该用
             self.test_dataloader = DataLoader(test_dataset, batch_size=args.per_device_test_batch_size, collate_fn=self.data_collator)
-            if self.args.test_dataloader_use_accelerate is True and self.args.whether_hg_accelerator:
+            if self.args.test_dataloader_use_accelerate is True:
                 self.test_dataloader = self.accelerator.prepare(self.test_dataloader)
         else:
             self.test_dataloader = None
         
         if optimizer is None :
-            if self.args.optimizer_type == "adam":
-                from torch.optim import Adam
-                self.optimizer = Adam(self.model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2],eps=args.adam_epsilon)
+            Warning("No optimizer is provided, using Adam as default")
+            from torch.optim import Adam
+            self.optimizer = Adam(self.model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2],eps=args.adam_epsilon)
             # self.optimizer = AdamW(self.model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2])
-            elif self.args.optimizer_type == "sgd":
-                from torch.optim import SGD
-                self.optimizer = SGD(self.model.parameters(),lr=args.learning_rate,momentum=args.sgd_momentum)
         else:
             self.optimizer = optimizer
 
@@ -82,13 +78,10 @@ class TrainerSelf():
         
         self.logger = Logger(args.report_to,args.output_dir)
         self.model = self.model.to(self.device)
-        if self.args.whether_hg_accelerator:
-            self.model, self.optimizer, self.lr_scheduler,self.train_dataloader,self.eval_dataloader = self.accelerator.prepare(model,
-                self.optimizer, self.lr_scheduler,self.train_dataloader, self.eval_dataloader)
-            from accelerate.state import PartialState
-            self.state = PartialState()
-        else:
-            self.state = None
+        self.model, self.optimizer, self.lr_scheduler,self.train_dataloader,self.eval_dataloader = self.accelerator.prepare(model,
+            self.optimizer, self.lr_scheduler,self.train_dataloader, self.eval_dataloader)
+        from accelerate.state import PartialState
+        self.state = PartialState()
         
         self.best_loss = float("inf")
 
@@ -99,66 +92,55 @@ class TrainerSelf():
         losses = []
         completed_steps = 0 
         all_compute_grad_times = 0  # 这个应该和gradient_accumulation_steps解耦
-        if self.state is not None:
-            print("state process"+ str(self.state.process_index))
+
+        print("state process"+ str(self.state.process_index))
         for epoch in range(self.args.num_train_epochs):
             self.time = time.time()
             for step, batch in enumerate(self.train_dataloader):
-                if self.args.whether_hg_accelerator is False:
-                    batch = {k: v.to(self.device) for k, v in batch.items()}
-                outputs = self.forward_core(batch)
-                loss = outputs.loss # loss = outputs.loss loss = output[0] 都可以取到
-                losses.append(loss)
-                loss = loss / self.args.gradient_accumulation_steps
-                # print("loss : " + str(loss))
-                # loss.retain_grad()
-                # loss = loss/ self.accelerator.gradient_accumulation_steps  # This code will be implemented in ACCELERATE，但是是另外一种形式
-                if self.args.whether_hg_accelerator:
+                with self.accelerator.accumulate(self.model):
+
+                    outputs = self.forward_core(batch)
+                    loss = outputs.loss # loss = outputs.loss loss = output[0]
+                    losses.append(loss)
+                    # print("loss : " + str(loss))
+                    # loss.retain_grad()
+                    # loss = loss/ self.accelerator.gradient_accumulation_steps  # This code will be implemented in ACCELERATE
                     self.accelerator.backward(loss)
-                else:
-                    loss.backward()
-                # if outputs.logits.grad is not None:
-                #     print("outputs.logits.grad : " + str(torch.norm(outputs.logits.grad)))
-                # if self.accelerator.sync_gradients:
-                #     self.accelerator.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
-
-
-                all_compute_grad_times += 1
-                if step % self.args.gradient_accumulation_steps == 0:
-                    if self.args.whether_hg_accelerator:
+                    # if outputs.logits.grad is not None:
+                    #     print("outputs.logits.grad : " + str(torch.norm(outputs.logits.grad)))
+                    if self.accelerator.sync_gradients:
                         self.accelerator.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
-                    else:
-                        torch.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.args.max_grad_norm)
-                    
-                    self.direct_log_grad(all_compute_grad_times)
                     self.optimizer.step()
                     self.lr_scheduler.step()
                     self.optimizer.zero_grad()
-                    completed_steps += 1
-                    if 1-self.args.train_audit_probability < random.random():
-                        self.print_debug_info("train",outputs, batch, completed_steps)
-                if all_compute_grad_times % self.args.logging_steps == 1:
-                    self.average_log_scaler("train","loss",all_compute_grad_times, losses)
-                    self.direct_log_scaler("train","lr",all_compute_grad_times, self.lr_scheduler.get_last_lr())
-                    train_average_time = (time.time() - self.time) / self.args.logging_steps  # 一个梯度累积的时间
-                    self.direct_log_scaler("train",f"accumulation_step_spends_second(s/step)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, train_average_time)
-                    step_per_second = self.args.gradient_accumulation_steps / train_average_time
-                    self.direct_log_scaler("train",f"accumulation_step_per_seconde(step/s)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, step_per_second)
-                    example_per_second =  self.args.per_device_train_batch_size * self.args.gradient_accumulation_steps / train_average_time
-                    self.direct_log_scaler("train","train_example_per_second(example/s)",all_compute_grad_times, example_per_second) # 最核心关注速度指标，训练一个seque
-                    self.time = time.time()
-                    losses = []
-                if all_compute_grad_times % self.args.save_steps == 1:
-                    self.save_model(all_compute_grad_times)
-                if all_compute_grad_times % self.args.eval_steps == 1:
-                    self.evaluate(all_compute_grad_times)
-                if self.args.test_step is not None and all_compute_grad_times % self.args.test_step == 1:
-                    self.test(all_compute_grad_times)
+                    self.direct_log_grad(all_compute_grad_times)
 
-                if all_compute_grad_times >= self.args.max_steps:
-                    break
-            if self.args.whether_hg_accelerator:
-                self.accelerator.save_state(output_dir=os.path.join(self.args.output_dir, f"checkpoint-epoch-accelerate-save-state-{epoch}"), state=self.state)
+                    all_compute_grad_times += 1
+                    if step % self.args.gradient_accumulation_steps == 0:
+                        completed_steps += 1
+                        if 1-self.args.train_audit_probability < random.random():
+                            self.print_debug_info("train",outputs, batch, completed_steps)
+                    if all_compute_grad_times % self.args.logging_steps == 1:
+                        self.average_log_scaler("train","loss",all_compute_grad_times, losses)
+                        self.direct_log_scaler("train","lr",all_compute_grad_times, self.lr_scheduler.get_last_lr())
+                        train_average_time = (time.time() - self.time) / self.args.logging_steps  # 一个梯度累积的时间
+                        self.direct_log_scaler("train",f"accumulation_step_spends_second(s/step)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, train_average_time)
+                        step_per_second = self.args.gradient_accumulation_steps / train_average_time
+                        self.direct_log_scaler("train",f"faccumulation_step_per_seconde(step/s)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, step_per_second)
+                        example_per_second =  self.args.per_device_train_batch_size * self.args.gradient_accumulation_steps / train_average_time
+                        self.direct_log_scaler("train","train_example_per_second(example/s)",all_compute_grad_times, example_per_second) # 最核心关注速度指标，训练一个seque
+                        self.time = time.time()
+                        losses = []
+                    if all_compute_grad_times % self.args.save_steps == 1:
+                        self.save_model(all_compute_grad_times)
+                    if all_compute_grad_times % self.args.eval_steps == 1:
+                        self.evaluate(all_compute_grad_times)
+                    if self.args.test_step is not None and all_compute_grad_times % self.args.test_step == 1:
+                        self.test(all_compute_grad_times)
+
+                    if all_compute_grad_times >= self.args.max_steps:
+                        break
+            self.accelerator.save_state(output_dir=os.path.join(self.args.output_dir, f"checkpoint-epoch-accelerate-save-state-{epoch}"), state=self.state)
             if all_compute_grad_times >= self.args.max_steps:
                 break
                         
@@ -182,14 +164,9 @@ class TrainerSelf():
         self.model.eval()
         losses = []
         for step, batch in enumerate(self.eval_dataloader):
-            if self.args.whether_hg_accelerator is False:
-                batch = {k: v.to(self.device) for k, v in batch.items()}
             with torch.no_grad():
                 outputs = self.forward_core(batch)
-            if self.args.whether_hg_accelerator:
-                losses.append(self.accelerator.gather(outputs.loss))
-            else:
-                losses.append(outputs.loss.detach().cpu())
+            losses.append(self.accelerator.gather(outputs.loss))
         self.average_log_scaler("evaluate","loss",current_step, losses)
         evaluate_time = time.time() - start_time
         self.direct_log_scaler("evaluate",f"inference_speed(s/step)-bs-{self.args.per_device_eval_batch_size}",current_step, evaluate_time/len(self.eval_dataloader))
@@ -300,7 +277,7 @@ class TrainerSelf():
 
 
     def average_log_scaler(self, stage, name, step, scalers, whether_print = True):
-        if (self.args.whether_hg_accelerator and self.accelerator.is_main_process) or (not self.args.whether_hg_accelerator):
+        if self.accelerator.is_main_process:
             try:
                 to_log = torch.mean(torch.cat(scalers))
             except:
@@ -315,7 +292,7 @@ class TrainerSelf():
             # self.logger.log_scaler(f"{name}-Perplexity/{stage}", perplexity, step)
     
     def direct_log_scaler(self, stage, name, step, scaler, whether_print = True):
-        if (self.args.whether_hg_accelerator and self.accelerator.is_main_process) or (not self.args.whether_hg_accelerator):
+        if self.accelerator.is_main_process:
             try:
                 if len(scaler) == 1:
                     scaler = scaler[0]
@@ -328,11 +305,8 @@ class TrainerSelf():
             self.logger.log_scaler(f"{name}/{stage}", scaler, step)
     
     def save_model(self, step):
-        if (self.args.whether_hg_accelerator and self.accelerator.is_main_process) or (not self.args.whether_hg_accelerator):
-            if self.args.whether_hg_accelerator:
-                model_unwrapped = self.accelerator.unwrap_model(self.model)
-            else:
-                model_unwrapped = self.model
+        if self.accelerator.is_main_process:
+            model_unwrapped = self.accelerator.unwrap_model(self.model)
             model_unwrapped.save_pretrained(f"{self.args.output_dir}/checkpoint-{step}")
             # self.accelerator.save(self.model, f"{self.args.output_dir}/checkpoint-{step}/model.pkl")
             with open(f"{self.args.output_dir}/checkpoint-{step}/training_args.json","w") as f:
@@ -342,9 +316,6 @@ class TrainerSelf():
     def direct_log_grad(self,step):
         for name, param in self.model.named_parameters():
             self.direct_log_scaler(stage="grad",name = name, step=step, scaler=torch.norm(param.grad,p="fro"),whether_print=False)
-            # if "wpe" in name:
-            #     torch.set_printoptions(edgeitems=1000, precision=5, linewidth=100)
-            #     print("wpe grad:"+str(param.grad))
     
     def print_debug_info(self,stage:str,outputs,batch,completed_steps):
         if self.accelerator.is_main_process:

@@ -23,7 +23,7 @@ def main():
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
-    gradient_ac = 6
+    gradient_ac = 10
     max_steps = 13000*5 * gradient_ac
     from transformers import TrainingArguments,Trainer
 
@@ -46,8 +46,9 @@ def main():
         adam_beta2 = 0.999,
         adam_epsilon = 1e-6,
         warmup_steps=200 * gradient_ac,
-        lr_scheduler_type="cosine",
-        learning_rate=3e-4,
+        # lr_scheduler_type="cosine",
+        lr_scheduler_type="fixed",
+        learning_rate=1e-4,
         save_steps=1_000 * gradient_ac,
         fp16=True,
         report_to="tensorboard",

@@ -19,6 +19,8 @@ model_save/
 !/processed_datadir/*/*.ipynb
 /hug_gpt_pretrain
 /hug_gpt_pretrain_hug_trainer
+/speed_test
+*.0
 
 
 

@@ -10,18 +10,18 @@ def main():
     from transformers import GPT2Tokenizer
     tokenizer = GPT2Tokenizer.from_pretrained("./tokenizer_save/tokenizer-gpt2-512")
     tokenizer.eos_token_id = tokenizer.pad_token_id
-    from transformers import GPT2Config
+    from transformers import GPT2Config,DataCollatorForLanguageModeling
     config = GPT2Config(vocab_size=tokenizer.vocab_size, n_embd=768, 
                 n_layer=12, n_head=12)
     from transformers import GPT2LMHeadModel
     model = GPT2LMHeadModel(config)
     # model.load_state_dict(torch.load("./hug_gpt_train_self/03-30-17-03/checkpoint-20001/pretrain_weight.pt"))
-
+    data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
     from TrainArgumentSelf import TrainingArgumentsSelf
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
-    gradient_ac = 6
+    gradient_ac = 12
     max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
         output_dir=f"hug_gpt_pretrain/{date_string}/",
@@ -31,13 +31,14 @@ def main():
         logging_steps=20 * gradient_ac,
         gradient_accumulation_steps=gradient_ac,
         max_steps=max_steps,   
-        num_train_epochs=20,  # 一个epoch差不多是1H，2GPU
+        num_train_epochs=20,  
         weight_decay=0.01,
         adam_beta1 = 0.9,
         adam_beta2 = 0.999,
         adam_epsilon = 1e-6,
-        warmup_steps=200 * gradient_ac,
+        warmup_steps= 0 ,
         lr_scheduler_type="cosine",
+        # lr_scheduler_type="constant",
         learning_rate=3e-4,
         save_steps=1_000 * gradient_ac,
         fp16=True,
@@ -47,6 +48,8 @@ def main():
         per_device_test_batch_size=32,
         all_test_examples_num=0,
         test_dataloader_use_accelerate=True,
+        optimizer_type="sgd",
+        sgd_momentum=0.9,
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(
@@ -54,7 +57,7 @@ def main():
         model=model,
         tokenizer=tokenizer,
         args=args,
-        data_collator=None,
+        data_collator=data_collator,
         train_dataset=preprocessed_splits["train"],
         eval_dataset=preprocessed_splits["validation"],
         test_dataset=preprocessed_splits["test"]

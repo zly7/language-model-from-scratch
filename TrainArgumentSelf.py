@@ -29,6 +29,9 @@ class TrainingArgumentsSelf(TrainingArguments):
     test_dataloader_use_accelerate:bool = field(default=False)
     per_device_test_batch_size:int = field(default=32)
     all_test_examples_num:int = field(default=256)
+    whether_hg_accelerator:bool = field(default=True)
+    optimizer_type:str = field(default="adam")
+    sgd_momentum:float = field(default=0.9)
     def __post_init__(self):
         super().__post_init__()
         if self.max_steps is not None:

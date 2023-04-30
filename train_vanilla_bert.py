@@ -14,10 +14,12 @@ def main():
 
     # Create the model
     config = BertConfig(vocab_size=tokenizer.vocab_size, n_embd=768, 
-                n_layers=12, n_head=12, dropout=0.1, use_cosformer=False)
+                n_layer=12, n_head=12, dropout=0.1, use_cosformer=False)
     LMmodel = BertLM(config)
     model_size = sum(t.numel() for t in LMmodel.parameters())
     print(f"Bert size: {model_size/1000**2:.1f}M parameters")
+    for name, param in LMmodel.named_parameters():
+        print(name, param.shape)
     from transformers import DataCollatorForLanguageModeling
 
     # LMmodel.load_state_dict(torch.load("./hug_bert_train_self/04-05-11-55/checkpoint-13576/pretrain_weight.pt"))
@@ -32,7 +34,8 @@ def main():
     gradient_ac = 4
     max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
-        output_dir=f"vanilla_bert_pretrain/{date_string}/",
+        # output_dir=f"vanilla_bert_pretrain/{date_string}/",
+        output_dir="speed_test/vanilla_bert/sequence128",
         per_device_train_batch_size=64,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=64,
         eval_steps=1000 * gradient_ac,
@@ -51,10 +54,11 @@ def main():
         fp16=True,
         report_to="tensorboard",
         train_audit_probability=0,
-        test_step=5000*gradient_ac,
-        per_device_test_batch_size=8,
-        all_test_examples_num=256,
-        test_dataloader_use_accelerate=True,
+        # test_step=5000*gradient_ac,
+        test_step=None,
+        optimizer_type="sgd",
+        sgd_momentum=0.1,
+
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(
