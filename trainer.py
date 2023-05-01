@@ -59,11 +59,16 @@ class TrainerSelf():
         if optimizer is None :
             if self.args.optimizer_type == "adam":
                 from torch.optim import Adam
-                self.optimizer = Adam(self.model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2],eps=args.adam_epsilon)
+                self.optimizer = Adam(self.get_grouped_params(weight_decay=args.weight_decay), 
+                lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2],eps=args.adam_epsilon)
             # self.optimizer = AdamW(self.model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2])
             elif self.args.optimizer_type == "sgd":
                 from torch.optim import SGD
                 self.optimizer = SGD(self.model.parameters(),lr=args.learning_rate,momentum=args.sgd_momentum)
+            elif self.args.optimizer_type == "adamw":
+                from torch.optim import AdamW
+                self.optimizer = AdamW(self.get_grouped_params(weight_decay=args.weight_decay), 
+                    lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2],eps=args.adam_epsilon)
         else:
             self.optimizer = optimizer
 
@@ -146,6 +151,7 @@ class TrainerSelf():
                     self.direct_log_scaler("train",f"accumulation_step_per_second(step-per-s)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, step_per_second)
                     example_per_second =  self.args.per_device_train_batch_size * self.args.gradient_accumulation_steps / train_average_time
                     self.direct_log_scaler("train","train_example_per_second(example-per-s)",all_compute_grad_times, example_per_second) # 最核心关注速度指标，训练一个seque
+                    self.direct_log_scaler("train","epoch",all_compute_grad_times, epoch+step/len(self.train_dataloader))   
                     self.time = time.time()
                     losses = []
                 if all_compute_grad_times % self.args.save_steps == 1:
@@ -320,7 +326,7 @@ class TrainerSelf():
                 if len(scaler) == 1:
                     scaler = scaler[0]
                 elif len(scaler) > 1:
-                    Warning("the scaler should be one number")
+                    scaler = scaler[0]
             except:
                 pass
             if whether_print:
@@ -382,6 +388,18 @@ class TrainerSelf():
                 print("GPU memory usage:")
                 print(torch.cuda.memory_allocated(device)/1024**2, "MB allocated")
                 print(torch.cuda.memory_cached(device)/1024**2, "MB cached")
+    
+    def get_grouped_params(self, no_decay=["bias", "LayerNorm.weight","ln"],weight_decay=0.01):
+        params_with_wd, params_without_wd = [], []
+        for n, p in self.model.named_parameters():
+            if any(nd in n for nd in no_decay):
+                params_without_wd.append(p)
+            else:
+                params_with_wd.append(p)
+        return [
+            {"params": params_with_wd, "weight_decay": weight_decay},
+            {"params": params_without_wd, "weight_decay": 0.0},
+        ]
 
 
 

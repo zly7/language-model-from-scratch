@@ -1,17 +1,16 @@
 
 from datasets import load_dataset, DatasetDict, load_from_disk
 from model.model_bert.language_model import  BertConfig,BertLM
-# 这句话访问不到是没有访问到module,需要在__init__.py里面引入，可以想象成__init__.py是本题
+# 这句话访问不到是没有访问到module,需要在__init__.py里面引入，可以想象成__init__.py是本体
 # from model.model_bert.bert import BERTs
 # from model.model_bert.language_model import BERTLM
 from transformers import AutoTokenizer
-from determine_batch_size import get_batch_size
 import torch
+from determine_batch_size import get_batch_size
+assert float(torch.__version__) >2.0
 def main():
     print("Loading dataset")
-    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-bert-512-without-test")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
-    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
     preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-2048")
     sequence_length = 2048
@@ -20,11 +19,15 @@ def main():
 
     # Create the model
     config = BertConfig(vocab_size=tokenizer.vocab_size, n_embd=768, 
-                n_layer=12, n_head=12, dropout=0.1, use_cosformer=True)
+                n_layer=12, n_head=12, dropout=0.1, use_cosformer=False)
     LMmodel = BertLM(config)
     model_size = sum(t.numel() for t in LMmodel.parameters())
     print(f"Bert size: {model_size/1000**2:.1f}M parameters")
+    for name, param in LMmodel.named_parameters():
+        print(name, param.shape)
     from transformers import DataCollatorForLanguageModeling
+
+    # LMmodel.load_state_dict(torch.load("./hug_bert_train_self/04-05-11-55/checkpoint-13576/pretrain_weight.pt"))
 
     # Create the data collator
     # data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
@@ -39,7 +42,7 @@ def main():
     batch_size = get_batch_size("base","bert",sequence_length)
     args = TrainingArgumentsSelf(
         # output_dir=f"vanilla_bert_pretrain/{date_string}/",
-        output_dir=f"speed_test/cos_bert/sequence{sequence_length}",
+        output_dir=f"speed_test/torch2_fastattention_bert/sequence{sequence_length}/",
         per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=batch_size,
         eval_steps=1000 * gradient_ac,
@@ -53,21 +56,17 @@ def main():
         adam_epsilon = 1e-6,
         warmup_steps=200 * gradient_ac,
         lr_scheduler_type="cosine",
-        learning_rate=3e-4,
+        learning_rate=1e-3,
         save_steps=1_000 * gradient_ac,
-        # fp16=False,
         fp16=True,
         report_to="tensorboard",
         train_audit_probability=0,
-        # test_step=10000*gradient_ac,
+        # test_step=5000*gradient_ac,
         test_step=None,
-        # per_device_test_batch_size=8,
-        # all_test_examples_num=256,
-        # test_dataloader_use_accelerate=True,
         optimizer_type="sgd",
         sgd_momentum=0.1,
-        sequence_length=1024,
-        
+        sequence_length=sequence_length,
+
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(

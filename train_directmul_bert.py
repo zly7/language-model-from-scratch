@@ -10,8 +10,10 @@ from determine_batch_size import get_batch_size
 def main():
     print("Loading dataset")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
-    sequence_length = 512
+    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
+    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-2048")
+    sequence_length = 2048
     tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     print("tokenizer:",str(tokenizer))
 
@@ -35,7 +37,7 @@ def main():
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
     gradient_ac = 4
-    max_steps = 3e4
+    max_steps = 5e3
     batch_size = get_batch_size("base","bert",sequence_length)
     args = TrainingArgumentsSelf(
         # output_dir=f"vanilla_bert_pretrain/{date_string}/",
@@ -62,6 +64,7 @@ def main():
         test_step=None,
         optimizer_type="sgd",
         sgd_momentum=0.1,
+        sequence_length=sequence_length,
 
     )
     from trainer import TrainerSelf
