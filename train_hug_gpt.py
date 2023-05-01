@@ -25,7 +25,7 @@ def main():
     max_steps = 13000*5 * gradient_ac
     args = TrainingArgumentsSelf(
         output_dir=f"hug_gpt_pretrain/{date_string}/",
-        per_device_train_batch_size=12,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
+        per_device_train_batch_size=16,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=24,
         eval_steps=1000 * gradient_ac,
         logging_steps=20 * gradient_ac,
@@ -37,9 +37,9 @@ def main():
         adam_beta2 = 0.999,
         adam_epsilon = 1e-6,
         warmup_steps= 0 ,
-        lr_scheduler_type="cosine",
-        # lr_scheduler_type="constant",
-        learning_rate=3e-4,
+        # lr_scheduler_type="cosine",
+        lr_scheduler_type="constant",
+        learning_rate=1e-3,
         save_steps=1_000 * gradient_ac,
         fp16=True,
         report_to="tensorboard",
@@ -49,7 +49,7 @@ def main():
         all_test_examples_num=0,
         test_dataloader_use_accelerate=True,
         optimizer_type="sgd",
-        sgd_momentum=0.9,
+        sgd_momentum=0,
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(

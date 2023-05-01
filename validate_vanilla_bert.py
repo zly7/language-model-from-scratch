@@ -49,6 +49,7 @@ def main():
         learning_rate=3e-4,
         save_steps=1_000 * gradient_ac,
         fp16=True,
+        # fp16=False,
         report_to="tensorboard",
         train_audit_probability=0,
         test_step=10000*gradient_ac,

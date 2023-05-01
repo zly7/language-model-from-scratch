@@ -1,23 +1,18 @@
 import torch.nn as nn
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 
 from .embedding import BERTEmbedding
 from ..backbone.modeling_outputs import MaskedLMOutput,BaseModelOutputWithPastAndCrossAttentions
-from ..backbone.bb_attention import CosformerAttention,BidirectionalSelfAttention
+from ..backbone.bb_attention import CosformerAttention,BidirectionalSelfAttention,DirectMultiplyAttentionNotRight
 from ..backbone.bb_basic import LayerNorm, new_gelu, MLP
 import torch
+from ..backbone.bb_config import LMconfig
 @dataclass
-class BertConfig:
-    block_size: int = 1024
-    vocab_size: int = 50304 
-    n_layer: int = 12
-    n_head: int = 12
-    n_embd: int = 768
-    dropout: float = 0.0
-    bias = False
-    use_cosformer: bool = False
+class BertConfig(LMconfig):
+    use_directmul:bool = field(default=False)
+    pass
 
 
 class BidirectionalBlock(nn.Module):
@@ -49,6 +44,18 @@ class cosFormerBlock(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return x
 
+class directMulBlock(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.ln_1 = LayerNorm(config.n_embd, bias=config.bias)
+        self.attn = DirectMultiplyAttentionNotRight(config)
+        self.ln_2 = LayerNorm(config.n_embd, bias=config.bias)
+        self.mlp = MLP(config)
+
+    def forward(self, x,attn_mask=None):
+        x = x + self.attn(self.ln_1(x),attn_mask = attn_mask).x
+        x = x + self.mlp(self.ln_2(x))
+        return x
 
 
 class BERTEncoder(nn.Module):
@@ -73,6 +80,9 @@ class BERTEncoder(nn.Module):
         if config.use_cosformer:
             self.transformer_blocks = nn.ModuleList(
                 [cosFormerBlock(config) for _ in range(config.n_layer)])
+        elif config.use_directmul:
+            self.transformer_blocks = nn.ModuleList(
+                [directMulBlock(config) for _ in range(config.n_layer)])
         else:
             self.transformer_blocks = nn.ModuleList(
                 [BidirectionalBlock(config) for _ in range(config.n_layer)])

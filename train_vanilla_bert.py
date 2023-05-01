@@ -6,10 +6,13 @@ from model.model_bert.language_model import  BertConfig,BertLM
 # from model.model_bert.language_model import BERTLM
 from transformers import AutoTokenizer
 import torch
+from determine_batch_size import get_batch_size
 def main():
     print("Loading dataset")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
-    tokenizer = AutoTokenizer.from_pretrained("./tokenizer_save/tokenizer-bert-base-uncased-128")
+    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
+    sequence_length = 512
+    tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     print("tokenizer:",str(tokenizer))
 
     # Create the model
@@ -32,12 +35,14 @@ def main():
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
     gradient_ac = 4
-    max_steps = 13000*5 * gradient_ac
+    # max_steps = 13000*5 * gradient_ac
+    max_steps = 3e4
+    batch_size = get_batch_size("base","bert",sequence_length)
     args = TrainingArgumentsSelf(
         # output_dir=f"vanilla_bert_pretrain/{date_string}/",
-        output_dir="speed_test/vanilla_bert/sequence128",
-        per_device_train_batch_size=64,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
-        per_device_eval_batch_size=64,
+        output_dir=f"speed_test/vanilla_bert/sequence{sequence_length}/",
+        per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
+        per_device_eval_batch_size=batch_size,
         eval_steps=1000 * gradient_ac,
         logging_steps=20 * gradient_ac,
         gradient_accumulation_steps=gradient_ac,

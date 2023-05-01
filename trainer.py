@@ -141,11 +141,11 @@ class TrainerSelf():
                     self.average_log_scaler("train","loss",all_compute_grad_times, losses)
                     self.direct_log_scaler("train","lr",all_compute_grad_times, self.lr_scheduler.get_last_lr())
                     train_average_time = (time.time() - self.time) / self.args.logging_steps  # 一个梯度累积的时间
-                    self.direct_log_scaler("train",f"accumulation_step_spends_second(s/step)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, train_average_time)
+                    self.direct_log_scaler("train",f"accumulation_step_spends_second(s-per-step)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, train_average_time)
                     step_per_second = self.args.gradient_accumulation_steps / train_average_time
-                    self.direct_log_scaler("train",f"accumulation_step_per_seconde(step/s)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, step_per_second)
+                    self.direct_log_scaler("train",f"accumulation_step_per_second(step-per-s)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, step_per_second)
                     example_per_second =  self.args.per_device_train_batch_size * self.args.gradient_accumulation_steps / train_average_time
-                    self.direct_log_scaler("train","train_example_per_second(example/s)",all_compute_grad_times, example_per_second) # 最核心关注速度指标，训练一个seque
+                    self.direct_log_scaler("train","train_example_per_second(example-per-s)",all_compute_grad_times, example_per_second) # 最核心关注速度指标，训练一个seque
                     self.time = time.time()
                     losses = []
                 if all_compute_grad_times % self.args.save_steps == 1:
@@ -192,9 +192,9 @@ class TrainerSelf():
                 losses.append(outputs.loss.detach().cpu())
         self.average_log_scaler("evaluate","loss",current_step, losses)
         evaluate_time = time.time() - start_time
-        self.direct_log_scaler("evaluate",f"inference_speed(s/step)-bs-{self.args.per_device_eval_batch_size}",current_step, evaluate_time/len(self.eval_dataloader))
-        self.direct_log_scaler("evaluate",f"inference_per_step_spend_time(step/s)-bs-{self.args.per_device_eval_batch_size}",current_step, len(self.eval_dataloader)/evaluate_time)
-        self.direct_log_scaler("evaluate","evaluate_example_per_second(example/s)",current_step, len(self.eval_dataloader) * self.args.per_device_eval_batch_size / evaluate_time)
+        self.direct_log_scaler("evaluate",f"inference_speed(s-per-step)-bs-{self.args.per_device_eval_batch_size}",current_step, evaluate_time/len(self.eval_dataloader))
+        self.direct_log_scaler("evaluate",f"inference_per_step_spend_time(step-per-s)-bs-{self.args.per_device_eval_batch_size}",current_step, len(self.eval_dataloader)/evaluate_time)
+        self.direct_log_scaler("evaluate","evaluate_example_per_second(example-per-s)",current_step, len(self.eval_dataloader) * self.args.per_device_eval_batch_size / evaluate_time)
         self.model.train()
         
     

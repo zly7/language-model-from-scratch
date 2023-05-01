@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o job.%j-cos-bert-1gpu.out          # 脚本执行的输出将被保存在当job.%j.out文件下，%j表示作业号;
+#SBATCH -o job.%j-speed.out          # 脚本执行的输出将被保存在当job.%j.out文件下，%j表示作业号;
 #SBATCH --partition=gpulab02      
 #SBATCH --qos=gpulab02             # 指定作业的QOS
 #SBATCH -J zly       # 作业在调度系统中的作业名为myFirstJob;
@@ -8,4 +8,6 @@
 #SBATCH --gres=gpu:1           # 指定作业的需要的GPU卡数量，集群不一样，注意最大限制; 
 #SBATCH --nodelist=gpu029
 nvidia-smi
+accelerate launch --config_file acce_config_1GPU.yaml --main_process_port 29501 train_vanilla_bert.py
 accelerate launch --config_file acce_config_1GPU.yaml --main_process_port 29501 train_cos_bert.py
+accelerate launch --config_file acce_config_1GPU.yaml --main_process_port 29501 train_directmul_bert.py
