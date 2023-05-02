@@ -9,6 +9,8 @@ def get_batch_size(model_size : str,model_type:str,sequence_length:int):  # è¿™ä
                 batch_size = 8
             elif 2048 == sequence_length:
                 batch_size = 2
+            elif 4096 == sequence_length:
+                batch_size = 1
         elif "gpt" in model_type:
             if 128 == sequence_length:
                 batch_size = 60
@@ -18,6 +20,8 @@ def get_batch_size(model_size : str,model_type:str,sequence_length:int):  # è¿™ä
                 batch_size = 6
             elif 2048 == sequence_length:
                 batch_size = 2
+            elif 4096 == sequence_length:
+                batch_size = 1
         else:
             raise ValueError("model_type error")
     elif True:

@@ -3,7 +3,7 @@
   "cls_token": "[CLS]",
   "do_lower_case": true,
   "mask_token": "[MASK]",
-  "model_max_length": 2048,
+  "model_max_length": 4096,
   "pad_token": "[PAD]",
   "sep_token": "[SEP]",
   "special_tokens_map_file": null,

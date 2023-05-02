@@ -200,7 +200,7 @@ class TrainerSelf():
         evaluate_time = time.time() - start_time
         self.direct_log_scaler("evaluate",f"inference_speed(s-per-step)-bs-{self.args.per_device_eval_batch_size}",current_step, evaluate_time/len(self.eval_dataloader))
         self.direct_log_scaler("evaluate",f"inference_per_step_spend_time(step-per-s)-bs-{self.args.per_device_eval_batch_size}",current_step, len(self.eval_dataloader)/evaluate_time)
-        self.direct_log_scaler("evaluate","evaluate_example_per_second(example-per-s)",current_step, len(self.eval_dataloader) * self.args.per_device_eval_batch_size / evaluate_time)
+        self.direct_log_scaler("evaluate",f"inference_example_per_second(example-per-s)",current_step, len(self.eval_dataloader) * self.args.per_device_eval_batch_size / evaluate_time) # 这几个计算和train还有一些不同，涉及到GPU的个数
         self.model.train()
         
     

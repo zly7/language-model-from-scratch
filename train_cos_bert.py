@@ -10,11 +10,12 @@ import torch
 def main():
     print("Loading dataset")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-bert-512-without-test")
-    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-2048")
-    sequence_length = 2048
+    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-2048")
+    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-4096")
+    sequence_length = 128
     tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     print("tokenizer:",str(tokenizer))
 

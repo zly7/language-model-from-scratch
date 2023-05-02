@@ -8,6 +8,6 @@
 #SBATCH --gres=gpu:2           # 指定作业的需要的GPU卡数量，集群不一样，注意最大限制; 
 #SBATCH --nodelist=gpu030
 nvidia-smi
-accelerate launch --config_file acce_config.yaml --main_process_port 29501 train_vanilla_bert.py
-accelerate launch --config_file acce_config.yaml --main_process_port 29501 train_cos_bert.py
-accelerate launch --config_file acce_config.yaml --main_process_port 29501 train_directmul_bert.py
+accelerate launch --config_file acce_config_1GPU.yaml --main_process_port 29501 train_vanilla_bert.py
+accelerate launch --config_file acce_config_1GPU.yaml --main_process_port 29501 train_cos_bert.py
+accelerate launch --config_file acce_config_1GPU.yaml --main_process_port 29501 train_directmul_bert.py

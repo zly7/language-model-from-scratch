@@ -7,19 +7,19 @@ from model.model_bert.language_model import  BertConfig,BertLM
 from transformers import AutoTokenizer
 import torch
 from determine_batch_size import get_batch_size
-assert float(torch.__version__) >2.0
+assert torch.__version__ >= "2.0.0"
 def main():
     print("Loading dataset")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-2048")
-    sequence_length = 2048
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
+    sequence_length = 512
     tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     print("tokenizer:",str(tokenizer))
 
     # Create the model
     config = BertConfig(vocab_size=tokenizer.vocab_size, n_embd=768, 
-                n_layer=12, n_head=12, dropout=0.1, use_cosformer=False)
+                n_layer=12, n_head=12, dropout=0.1, use_cosformer=False,use_SDPA=True)
     LMmodel = BertLM(config)
     model_size = sum(t.numel() for t in LMmodel.parameters())
     print(f"Bert size: {model_size/1000**2:.1f}M parameters")

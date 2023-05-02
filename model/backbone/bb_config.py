@@ -10,3 +10,4 @@ class LMconfig:
     dropout: float = field(default=0.0)
     bias: bool = field(default=False)
     use_cosformer: bool = field(default=False)
+    use_SDPA : bool = field(default=False)

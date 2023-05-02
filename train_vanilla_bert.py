@@ -9,10 +9,10 @@ import torch
 from determine_batch_size import get_batch_size
 def main():
     print("Loading dataset")
-    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-2048")
-    sequence_length = 2048
+    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-4096")
+    sequence_length = 128
     tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     print("tokenizer:",str(tokenizer))
 

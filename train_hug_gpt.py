@@ -12,10 +12,10 @@ def main():
     tokenizer = GPT2Tokenizer.from_pretrained(f"./tokenizer_save/tokenizer-gpt2-{sequence_length}")
     tokenizer.eos_token_id = tokenizer.pad_token_id
     from transformers import GPT2Config,DataCollatorForLanguageModeling
-    # config = GPT2Config(vocab_size=tokenizer.vocab_size, n_embd=768, 
-    #             n_layer=12, n_head=12)
-    config = GPT2Config(vocab_size=tokenizer.vocab_size, n_embd=512,
-                n_layer=8, n_head=8)    
+    config = GPT2Config(vocab_size=tokenizer.vocab_size, n_embd=768, 
+                n_layer=12, n_head=12)
+    # config = GPT2Config(vocab_size=tokenizer.vocab_size, n_embd=512,
+    #             n_layer=8, n_head=8)    
     from transformers import GPT2LMHeadModel
     model = GPT2LMHeadModel(config)
     # model.load_state_dict(torch.load("./hug_gpt_train_self/03-30-17-03/checkpoint-20001/pretrain_weight.pt"))
@@ -27,7 +27,7 @@ def main():
     gradient_ac = 12
     batch_size = get_batch_size("base","gpt",sequence_length)
     # max_steps = 13000*5 * gradient_ac
-    max_steps = 5e4
+    max_steps = 5e5
     args = TrainingArgumentsSelf(
         output_dir=f"hug_gpt_pretrain/{date_string}/",
         per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
@@ -37,8 +37,8 @@ def main():
         gradient_accumulation_steps=gradient_ac,
         max_steps=max_steps,   
         num_train_epochs=20,  
-        # weight_decay=0.01,
-        weight_decay = 0.1,
+        weight_decay=0.01,
+        # weight_decay = 0.1,
         adam_beta1 = 0.9,
         adam_beta2 = 0.999,
         # adam_epsilon = 1e-6,
@@ -69,7 +69,7 @@ def main():
         eval_dataset=preprocessed_splits["validation"],
         test_dataset=preprocessed_splits["test"]
     )
-    print("Training model starts")
+    print("Training model starts test for weight decay parameter")
     trainer.train()
 
 
