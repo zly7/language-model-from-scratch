@@ -79,7 +79,7 @@ class TrainerSelf():
                 from transformers import get_linear_schedule_with_warmup,get_cosine_schedule_with_warmup
                 if args.max_steps >= 1e9:
                     args.max_steps = len(self.train_dataloader) * args.num_train_epochs / args.gradient_accumulation_steps
-                self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=args.max_steps // args.gradient_accumulation_steps)
+                self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=args.max_steps)
             elif self.args.lr_scheduler_type == "constant":
                 self.lr_scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,100,gamma=1)
         else:
@@ -96,7 +96,6 @@ class TrainerSelf():
             self.state = None
         
         self.best_loss = float("inf")
-        self.trainDetailTime = trainDetailTime(self)
 
 
         
@@ -104,7 +103,6 @@ class TrainerSelf():
         self.model.train()
         losses = []
         accuracies = []
-        topkaccuracies = []
         completed_steps = 0 
         all_compute_grad_times = 0  # 这个应该和gradient_accumulation_steps解耦
         if self.state is not None:
@@ -112,52 +110,47 @@ class TrainerSelf():
         for epoch in range(self.args.num_train_epochs):
             self.time = time.time()
             for step, batch in enumerate(self.train_dataloader):
-                self.trainDetailTime.start_train_step()
                 if self.args.whether_hg_accelerator is False:
                     batch = {k: v.to(self.device) for k, v in batch.items()}
-                self.trainDetailTime.start_forward()
                 outputs = self.forward_core(batch)
-                self.trainDetailTime.end_forward(all_compute_grad_times)
                 loss = outputs.loss # loss = outputs.loss loss = output[0] 都可以取到
                 losses.append(loss)
                 accuracies.append(outputs.accuracy)
-                topkaccuracies.append(outputs.topkaccuracy)
                 loss = loss / self.args.gradient_accumulation_steps
-                self.trainDetailTime.start_backward()
                 if self.args.whether_hg_accelerator:
                     self.accelerator.backward(loss)
                 else:
                     loss.backward()
-                self.trainDetailTime.end_backward(all_compute_grad_times)
 
                 all_compute_grad_times += 1
-                if (step+1) % self.args.gradient_accumulation_steps == 0:
+                if step % self.args.gradient_accumulation_steps == 0:
                     if self.args.whether_hg_accelerator:
                         self.accelerator.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
                     else:
                         torch.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.args.max_grad_norm)
                     
                     self.direct_log_grad(all_compute_grad_times)
-                    self.trainDetailTime.start_optimizer()
                     self.optimizer.step()
                     self.lr_scheduler.step()
                     self.optimizer.zero_grad()
-                    self.trainDetailTime.end_optimizer(all_compute_grad_times)
                     completed_steps += 1
                     if 1-self.args.train_audit_probability < random.random():
                         self.print_debug_info("train",outputs, batch, completed_steps)
                 if all_compute_grad_times % self.args.logging_steps == 1:
                     self.average_log_scaler("train","loss",all_compute_grad_times, losses)
                     self.direct_log_scaler("train","lr",all_compute_grad_times, self.lr_scheduler.get_last_lr())
+                    train_average_time = (time.time() - self.time) / self.args.logging_steps  # 一个梯度累积的时间
+                    self.direct_log_scaler("train",f"accumulation_step_spends_second(s-per-step)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, train_average_time)
+                    step_per_second = self.args.gradient_accumulation_steps / train_average_time
+                    self.direct_log_scaler("train",f"accumulation_step_per_second(step-per-s)-bs-{self.args.per_device_train_batch_size}",all_compute_grad_times, step_per_second)
+                    example_per_second =  self.args.per_device_train_batch_size * self.args.gradient_accumulation_steps / train_average_time
+                    self.direct_log_scaler("train","train_example_per_second(example-per-s)",all_compute_grad_times, example_per_second) # 最核心关注速度指标，训练一个seque
+                    self.direct_log_scaler("train","epoch",all_compute_grad_times, epoch+step/len(self.train_dataloader))   
+                    self.time = time.time()
                     if all(x is not None for x  in accuracies):
                         self.direct_log_scaler("train","accuracies",all_compute_grad_times, sum(accuracies)/len(accuracies))
-                    if all(x is not None for x  in topkaccuracies):
-                        self.direct_log_scaler("train","topkaccuracies",all_compute_grad_times, sum(topkaccuracies)/len(topkaccuracies))
                     losses = []
                     accuracies = []
-                    topkaccuracies = []
-                
-                self.trainDetailTime.end_train_step(all_compute_grad_times,epoch=epoch,step=step)
                 if all_compute_grad_times % self.args.save_steps == 1:
                     self.save_model(all_compute_grad_times)
                 if all_compute_grad_times % self.args.eval_steps == 1:
@@ -200,16 +193,12 @@ class TrainerSelf():
                 outputs = self.forward_core(batch)
             if self.args.whether_hg_accelerator:
                 losses.append(self.accelerator.gather(outputs.loss))
-                if outputs.accuracy is not None:
-                    accuracies.append(self.accelerator.gather(outputs.accuracy))
-                if outputs.topkaccuracy is not None:
-                    topkccuracies.append(self.accelerator.gather(outputs.topkaccuracy))
+                accuracies.append(self.accelerator.gather(outputs.accuracy))
+                topkccuracies.append(self.accelerator.gather(outputs.topkaccuracy))
             else:
                 losses.append(outputs.loss.detach().cpu())
-                if outputs.accuracy is not None:
-                    accuracies.append(outputs.accuracies.detach().cpu())
-                if outputs.topkaccuracy is not None:
-                    topkccuracies.append(outputs.topkaccuracy)
+                accuracies.append(outputs.accuracies.detach().cpu())
+                topkccuracies.append(outputs.topkaccuracy)
             
         self.average_log_scaler("evaluate","loss",current_step, losses)
         if all(x is not None for x  in accuracies):
@@ -217,7 +206,6 @@ class TrainerSelf():
         if all(x is not None for x  in topkccuracies):
             self.average_log_scaler("evaluate","topkaccuracies",current_step, topkccuracies)
         evaluate_time = time.time() - start_time
-        self.direct_log_scaler("evaluate",f"inference_time",current_step, evaluate_time)
         self.direct_log_scaler("evaluate",f"inference_speed(s-per-step)-bs-{self.args.per_device_eval_batch_size}",current_step, evaluate_time/len(self.eval_dataloader))
         self.direct_log_scaler("evaluate",f"inference_per_step_spend_time(step-per-s)-bs-{self.args.per_device_eval_batch_size}",current_step, len(self.eval_dataloader)/evaluate_time)
         self.direct_log_scaler("evaluate",f"inference_example_per_second(example-per-s)",current_step, len(self.eval_dataloader) * self.args.per_device_eval_batch_size / evaluate_time) # 这几个计算和train还有一些不同，涉及到GPU的个数
@@ -327,22 +315,26 @@ class TrainerSelf():
 
     def average_log_scaler(self, stage, name, step, scalers, whether_print = True):
         if (self.args.whether_hg_accelerator and self.accelerator.is_main_process) or (not self.args.whether_hg_accelerator):
-            
-            to_log = torch.mean(scalers)
-
+            try:
+                to_log = torch.mean(torch.cat(scalers))
+            except:
+                to_log = torch.mean(torch.stack(scalers))
             if whether_print:
                 print(f"Stage {stage}, Step {step}: {name}={to_log.item()}")
-            self.logger.log_scaler(f"{name}/{stage}", float(to_log.item()), step)
+            self.logger.log_scaler(f"{name}/{stage}", to_log, step)
     
     def direct_log_scaler(self, stage, name, step, scaler, whether_print = True):
         if (self.args.whether_hg_accelerator and self.accelerator.is_main_process) or (not self.args.whether_hg_accelerator):
-            if isinstance(scaler, (list, tuple)):
-                scaler_to_print = scaler[0]
-            if isinstance(scaler, (torch.Tensor,np.ndarray)):
-                scaler_to_print = scaler[0].item()
+            try:
+                if len(scaler) == 1:
+                    scaler = scaler[0]
+                elif len(scaler) > 1:
+                    scaler = scaler[0]
+            except:
+                pass
             if whether_print:
-                print(f"Stage {stage}, Step {step}: {name}={scaler_to_print}")
-            self.logger.log_scaler(f"{name}/{stage}", float(scaler_to_print), step)
+                print(f"Stage {stage}, Step {step}: {name}={scaler}")
+            self.logger.log_scaler(f"{name}/{stage}", scaler, step)
     
     def save_model(self, step):
         if (self.args.whether_hg_accelerator and self.accelerator.is_main_process) or (not self.args.whether_hg_accelerator):
@@ -414,65 +406,9 @@ class TrainerSelf():
 
 
 class trainDetailTime:
-    def __init__(self,trainer:TrainerSelf) -> None:
+    def __init__(self) -> None:
         self.start_forward_time = -1
         self.end_forward_time = -1
-        self.start_backward_time = -1
-        self.end_backward_time = -1
-        self.start_optimizer_time = -1
-        self.end_optimizer_time = -1
-        self.start_train_step_time = -1
-        self.end_train_step_time = -1
-        self.trainer = trainer
-        self.training_step_time_list = []
-    
-    def start_forward(self):
-        self.start_forward_time = time.time()
-    
-    def end_forward(self,step):
-        assert self.start_forward_time != -1
-        self.end_forward_time = time.time()
-        self.trainer.direct_log_scaler(stage="train",name="forward-time",step=step,scaler=self.end_forward_time-self.start_forward_time,whether_print=False)
-        self.start_forward_time = -1
-        self.end_backward_time = -1
-    
-    def start_backward(self):
-        self.start_backward_time = time.time()
-    
-    def end_backward(self,step):
-        assert self.start_backward_time != -1
-        self.end_backward_time = time.time()
-        self.trainer.direct_log_scaler(stage="train",name="backward-time",step=step,scaler=self.end_backward_time-self.start_backward_time,whether_print=False)
-        self.start_backward_time = -1
-        self.end_backward_time = -1
-    
-    def start_optimizer(self):
-        self.start_optimizer_time = time.time()
-    
-    def end_optimizer(self,step):
-        assert self.start_optimizer_time != -1
-        self.end_optimizer_time = time.time()
-        self.trainer.direct_log_scaler(stage="train",name="optimizer-time",step=step,scaler=self.end_optimizer_time-self.start_optimizer_time,whether_print=False)
-        self.start_optimizer_time = -1
-        self.end_optimizer_time = -1
-    
-    def start_train_step(self):
-        self.start_train_step_time = time.time()
-    
-    def end_train_step(self,all_compute_grad_times,epoch,step):
-        assert self.start_train_step_time != -1
-        self.end_train_step_time = time.time()
-        self.training_step_time_list.append(self.end_train_step_time-self.start_train_step_time)
-        if len(self.training_step_time_list) == self.trainer.args.gradient_accumulation_steps:
-            train_average_time =  torch.mean(torch.tensor(self.training_step_time_list))  # 一个梯度累积的时间
-            self.trainer.direct_log_scaler("train",f"accumulation_step_spends_second(s-per-step)-bs-{self.trainer.args.per_device_train_batch_size}",all_compute_grad_times, train_average_time)
-            step_per_second = self.trainer.args.gradient_accumulation_steps / train_average_time
-            self.trainer.direct_log_scaler("train",f"accumulation_step_per_second(step-per-s)-bs-{self.trainer.args.per_device_train_batch_size}",all_compute_grad_times, step_per_second)
-            example_per_second =  self.trainer.args.per_device_train_batch_size * self.trainer.args.gradient_accumulation_steps / train_average_time
-            self.trainer.direct_log_scaler("train","train_example_per_second(example-per-s)",all_compute_grad_times, example_per_second) # 最核心关注速度指标，训练一个seque
-            self.trainer.direct_log_scaler("train","epoch",all_compute_grad_times, epoch+step/len(self.trainer.train_dataloader))   
-            self.training_step_time_list = []
-
 
 
     

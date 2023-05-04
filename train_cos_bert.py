@@ -10,12 +10,12 @@ import torch
 def main():
     print("Loading dataset")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-bert-512-without-test")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
-    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
+    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-2048")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-4096")
-    sequence_length = 128
+    sequence_length = 512
     tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     print("tokenizer:",str(tokenizer))
 
@@ -34,15 +34,19 @@ def main():
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
-    gradient_ac = 4
-    # max_steps = 13000*5 * gradient_ac
-    max_steps = 5e3
+    all_graient_ac = 16
+    device_num = torch.cuda.device_count()
+    print("one_node_device_num:",device_num)
+    Warning("The all gradient ac is about one node,if you use multi node,please decrease the all_gradient_ac")
+    assert device_num >= 1
+    gradient_ac = all_graient_ac // device_num
+    max_steps = 2e5
     batch_size = get_batch_size("base","bert",sequence_length)
     args = TrainingArgumentsSelf(
-        # output_dir=f"vanilla_bert_pretrain/{date_string}/",
-        output_dir=f"speed_test/cos_bert/sequence{sequence_length}",
+        output_dir=f"vanilla_bert_pretrain/wa-{date_string}/",
+        # output_dir=f"speed_test/cos_bert/sequence{sequence_length}",
         per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
-        per_device_eval_batch_size=batch_size,
+        per_device_eval_batch_size=int(batch_size*1.5),
         eval_steps=1000 * gradient_ac,
         logging_steps=20 * gradient_ac,
         gradient_accumulation_steps=gradient_ac,
@@ -54,20 +58,15 @@ def main():
         adam_epsilon = 1e-6,
         warmup_steps=200 * gradient_ac,
         lr_scheduler_type="cosine",
-        learning_rate=3e-4,
+        learning_rate=5e-4,
         save_steps=1_000 * gradient_ac,
-        # fp16=False,
-        fp16=True,
+        fp16=False,
+        # fp16=True,
         report_to="tensorboard",
         train_audit_probability=0,
-        # test_step=10000*gradient_ac,
         test_step=None,
-        # per_device_test_batch_size=8,
-        # all_test_examples_num=256,
-        # test_dataloader_use_accelerate=True,
-        optimizer_type="sgd",
-        sgd_momentum=0.1,
-        sequence_length=1024,
+        optimizer_type="adamw",
+        sequence_length=sequence_length,
         
     )
     from trainer import TrainerSelf

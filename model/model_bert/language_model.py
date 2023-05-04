@@ -125,7 +125,17 @@ class BertLM(nn.Module):
             loss = nn.CrossEntropyLoss(ignore_index=-100)(logits.view(-1,logits.size(-1)),labels.view(-1))
         else:
             loss = None
-        return MaskedLMOutput(loss=loss,logits=logits)
+        preds = torch.argmax(logits, dim=-1)
+        active_loss_position = (labels != -100)  # There use muktiplier also work
+        acc = (preds[active_loss_position] == labels[active_loss_position]).float().mean() if labels is not None else None
+        if labels is not None:
+            top_k = 5
+            top_k_preds = torch.topk(logits, k=top_k, dim=-1).indices
+            top_k_correct = torch.eq(top_k_preds, labels.unsqueeze(-1)).any(dim=-1).float().sum()
+            top_k_acc = top_k_correct / active_loss_position.nonzero().size(0)
+        else:
+            top_k_acc = None
+        return MaskedLMOutput(loss=loss,logits=logits,accuracy=acc,topkaccuracy=top_k_acc)
     
     def save_pretrained(self, save_directory):
         import os

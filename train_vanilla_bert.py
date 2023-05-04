@@ -9,10 +9,11 @@ import torch
 from determine_batch_size import get_batch_size
 def main():
     print("Loading dataset")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
+    # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-4096")
-    sequence_length = 128
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
+    sequence_length = 512
     tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     print("tokenizer:",str(tokenizer))
 
@@ -35,15 +36,20 @@ def main():
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
-    gradient_ac = 4
+    all_graient_ac = 16
+    device_num = torch.cuda.device_count()
+    print("one_node_device_num:",device_num)
+    Warning("The all gradient ac is about one node,if you use multi node,please decrease the all_gradient_ac")
+    assert device_num >= 1
+    gradient_ac = all_graient_ac // device_num
     # max_steps = 13000*5 * gradient_ac
-    max_steps = 5e3
+    max_steps = 2e5
     batch_size = get_batch_size("base","bert",sequence_length)
     args = TrainingArgumentsSelf(
-        # output_dir=f"vanilla_bert_pretrain/{date_string}/",
-        output_dir=f"speed_test/vanilla_bert/sequence{sequence_length}/",
+        output_dir=f"vanilla_bert_pretrain/wa-{date_string}/", # wa means with accuracy
+        # output_dir=f"speed_test/vanilla_bert/sequence{sequence_length}/",
         per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
-        per_device_eval_batch_size=batch_size,
+        per_device_eval_batch_size= int(batch_size * 1.5),
         eval_steps=1000 * gradient_ac,
         logging_steps=20 * gradient_ac,
         gradient_accumulation_steps=gradient_ac,
@@ -55,17 +61,15 @@ def main():
         adam_epsilon = 1e-6,
         warmup_steps=200 * gradient_ac,
         lr_scheduler_type="cosine",
-        learning_rate=1e-3,
+        learning_rate=5e-4,
         save_steps=1_000 * gradient_ac,
         fp16=True,
         report_to="tensorboard",
         train_audit_probability=0,
         # test_step=5000*gradient_ac,
         test_step=None,
-        optimizer_type="sgd",
-        sgd_momentum=0.1,
         sequence_length=sequence_length,
-
+        optimizer_type="adamw",
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(

@@ -185,6 +185,8 @@ class MaskedLMOutput(ModelOutput):
     logits: torch.FloatTensor = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
+    accuracy: Optional[torch.FloatTensor] = None
+    topkaccuracy: Optional[torch.FloatTensor] = None
 
 @dataclass
 class CausalLMOutputWithCrossAttentions(ModelOutput):  # GPT2
