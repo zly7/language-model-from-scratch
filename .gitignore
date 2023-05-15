@@ -21,6 +21,10 @@ model_save/
 /hug_gpt_pretrain_hug_trainer
 /speed_test
 *.0
+/cos_bert_pretrain
+
+/compare_bert
+/compare_gpt
 
 
 

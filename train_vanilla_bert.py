@@ -12,7 +12,7 @@ def main():
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-preprocessed-ws-notext-bert-128-wtest")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
     # preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-4096")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-512-wtest")
     sequence_length = 512
     tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     print("tokenizer:",str(tokenizer))
@@ -55,21 +55,26 @@ def main():
         gradient_accumulation_steps=gradient_ac,
         max_steps=max_steps,   
         num_train_epochs=20,  # 一个epoch差不多是1H，2GPU
-        weight_decay=0.01,
+        weight_decay=0.01 * 2e-4,
         adam_beta1 = 0.9,
         adam_beta2 = 0.999,
         adam_epsilon = 1e-6,
-        warmup_steps=200 * gradient_ac,
+        warmup_steps=1000,
         lr_scheduler_type="cosine",
-        learning_rate=5e-4,
+        # learning_rate=5e-4,
+        learning_rate=2e-4,
         save_steps=1_000 * gradient_ac,
         fp16=True,
+        # fp16=False,
         report_to="tensorboard",
         train_audit_probability=0,
-        # test_step=5000*gradient_ac,
-        test_step=None,
+        test_step=5000*gradient_ac,
+        per_device_test_batch_size= batch_size // 2,
+        all_test_examples_num=144,
+        # test_step=None,
         sequence_length=sequence_length,
-        optimizer_type="adamw",
+        # optimizer_type="adamw",
+        optimizer_type="adam",
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(
@@ -80,7 +85,7 @@ def main():
         data_collator=data_collator,
         train_dataset=preprocessed_splits["train"],
         eval_dataset=preprocessed_splits["validation"],
-        test_dataset=preprocessed_splits["validation"]
+        test_dataset=preprocessed_splits["test"]
     )
     print("Training model starts")
     trainer.train()

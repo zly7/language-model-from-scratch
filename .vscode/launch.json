@@ -46,6 +46,13 @@
             "args": ["--config_file","acce_config_1GPU.yaml","visualize_hug_gpt.py"], 
             "console": "integratedTerminal",
             "justMyCode": true
+        },{
+            "name": "test-lsh",
+            "type": "python",
+            "request": "launch",
+            "args": ["test_lsh.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
         },
     ]
 }

@@ -233,6 +233,8 @@ class CausalLMOutputWithCrossAttentions(ModelOutput):  # GPT2
     all_keys: Optional[Tuple[torch.FloatTensor]] = None
     all_queries: Optional[Tuple[torch.FloatTensor]] = None
     all_values: Optional[Tuple[torch.FloatTensor]] = None
+    accuracy: Optional[torch.FloatTensor] = None
+    topkaccuracy: Optional[torch.FloatTensor] = None
 
 
 

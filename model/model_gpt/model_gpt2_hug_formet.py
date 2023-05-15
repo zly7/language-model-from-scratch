@@ -56,7 +56,9 @@ class cosFormerBlock(nn.Module):
     def forward(self, x):
         x = x + self.attn(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
-        return x
+        return BaseBlockOutput(
+            x = x,
+        )
 
 @dataclass
 class GPTConfig(LMconfig):
@@ -158,7 +160,16 @@ class GPT(nn.Module):
             # inference-time mini-optimization: only forward the lm_head on the very last position
             logits = self.lm_head(x[:, [-1], :]) # note: using list [-1] to preserve the time dim
             loss = None
-        # logits.retain_grad() # 这个地方require_grad是flase
+        preds = torch.argmax(logits, dim=-1)
+        active_loss_position = (targets != -100)  # There use muktiplier also work
+        acc = (preds[active_loss_position] == targets[active_loss_position]).float().mean() if targets is not None else None
+        if targets is not None:
+            top_k = 5
+            top_k_preds = torch.topk(logits, k=top_k, dim=-1).indices
+            top_k_correct = torch.eq(top_k_preds, targets.unsqueeze(-1)).any(dim=-1).float().sum()
+            top_k_acc = top_k_correct / active_loss_position.nonzero().size(0)
+        else:
+            top_k_acc = None
         
         if self.config.visualize:
             return CausalLMOutputWithCrossAttentions(
@@ -168,11 +179,15 @@ class GPT(nn.Module):
                 all_keys= all_keys_tuple,
                 all_queries=all_queries_tuple,
                 all_values=all_values_tuple,
+                accuracy=acc,
+                topkaccuracy=top_k_acc,
             )
         else:
             return CausalLMOutputWithCrossAttentions(
                 logits=logits,
                 loss=loss,
+                accuracy=acc,
+                topkaccuracy=top_k_acc,
             )
     
 

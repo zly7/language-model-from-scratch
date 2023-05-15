@@ -2,6 +2,7 @@
 
 from datasets import load_dataset, DatasetDict, load_from_disk
 from determine_batch_size import get_batch_size
+import torch
 def main():
     print("Loading dataset")
     # preprocessed_splits = load_from_disk("wikitext-103-preprocessed-ws-notext-gpt2-128-wtest-v2")
@@ -26,10 +27,16 @@ def main():
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
     batch_size = get_batch_size("base","gpt",sequence_length)
-    gradient_ac = 12
-    max_steps = 5e5
+    all_graient_ac = 16
+    device_num = torch.cuda.device_count()
+    print("one_node_device_num:",device_num)
+    Warning("The all gradient ac is about one node,if you use multi node,please decrease the all_gradient_ac")
+    assert device_num >= 1
+    gradient_ac = all_graient_ac // device_num
+    max_steps = 2e5
     args = TrainingArgumentsSelf(
-        output_dir=f"vanilla_gpt_pretrain/{date_string}/",
+        # output_dir=f"vanilla_gpt_pretrain/{date_string}/",
+        output_dir=f"./compare_gpt/vanilla_{date_string}/",
         per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=batch_size * 2,
         eval_steps=1000 * gradient_ac,
@@ -37,23 +44,24 @@ def main():
         gradient_accumulation_steps=gradient_ac,
         max_steps=max_steps,   
         num_train_epochs=20,  # 一个epoch差不多是1H，2GPU
-        weight_decay=0.01,
+        weight_decay=0.01 * 2e-4,
         adam_beta1 = 0.9,
         adam_beta2 = 0.999,
         # adam_epsilon = 1e-6,
         adam_epsilon=1e-8,
         warmup_steps=1000,
         lr_scheduler_type="cosine",
-        learning_rate=5e-4,
+        learning_rate=2e-4,
         save_steps=1_000 * gradient_ac,
         fp16=True,
         report_to="tensorboard",
         train_audit_probability=0,
         test_step=5000*gradient_ac,
-        per_device_test_batch_size=32,
+        per_device_test_batch_size=8,
         all_test_examples_num=128,
         test_dataloader_use_accelerate=True,
-        optimizer_type="adamw",
+        # optimizer_type="adamw",
+        optimizer_type="adam",
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(

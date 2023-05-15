@@ -26,7 +26,7 @@ class TrainingArgumentsSelf(TrainingArguments):
     #         self.all_test_examples_num = all_test_examples_num
     test_step:int = field(default=None)
     train_audit_probability:float = field(default=0.0)
-    test_dataloader_use_accelerate:bool = field(default=False)
+    test_dataloader_use_accelerate:bool = field(default=True)
     per_device_test_batch_size:int = field(default=32)
     all_test_examples_num:int = field(default=256)
     whether_hg_accelerator:bool = field(default=True)

@@ -80,6 +80,7 @@ class TrainerSelf():
                 if args.max_steps >= 1e9:
                     args.max_steps = len(self.train_dataloader) * args.num_train_epochs / args.gradient_accumulation_steps
                 self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=args.max_steps // args.gradient_accumulation_steps)
+                print("lr_schdule_step: " + str(args.max_steps // args.gradient_accumulation_steps) )
             elif self.args.lr_scheduler_type == "constant":
                 self.lr_scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,100,gamma=1)
         else:
@@ -97,6 +98,8 @@ class TrainerSelf():
         
         self.best_loss = float("inf")
         self.trainDetailTime = trainDetailTime(self)
+        if args.resume_from_checkpoint is not None:
+            self.accelerator.load_state(args.resume_from_checkpoint)
 
 
         
@@ -193,6 +196,7 @@ class TrainerSelf():
         losses = []
         accuracies = []
         topkccuracies = []
+        print("len(self.eval_dataloader)"+str(len(self.eval_dataloader)))
         for step, batch in enumerate(self.eval_dataloader):
             if self.args.whether_hg_accelerator is False:
                 batch = {k: v.to(self.device) for k, v in batch.items()}
@@ -201,7 +205,7 @@ class TrainerSelf():
             if self.args.whether_hg_accelerator:
                 losses.append(self.accelerator.gather(outputs.loss))
                 if outputs.accuracy is not None:
-                    accuracies.append(self.accelerator.gather(outputs.accuracy))
+                    accuracies.append(self.accelerator.gather(outputs.accuracy)) # gather 之后获得的是一个tensor组
                 if outputs.topkaccuracy is not None:
                     topkccuracies.append(self.accelerator.gather(outputs.topkaccuracy))
             else:
@@ -210,17 +214,17 @@ class TrainerSelf():
                     accuracies.append(outputs.accuracies.detach().cpu())
                 if outputs.topkaccuracy is not None:
                     topkccuracies.append(outputs.topkaccuracy)
-            
-        self.average_log_scaler("evaluate","loss",current_step, losses)
+        
+        self.average_log_scaler("evaluate","loss",current_step, torch.stack(losses).flatten()) 
         if all(x is not None for x  in accuracies):
-            self.average_log_scaler("evaluate","accuracies",current_step, accuracies)
+            self.average_log_scaler("evaluate","accuracies",current_step,torch.stack(accuracies).flatten())
         if all(x is not None for x  in topkccuracies):
-            self.average_log_scaler("evaluate","topkaccuracies",current_step, topkccuracies)
+            self.average_log_scaler("evaluate","topkaccuracies",current_step, torch.stack(topkccuracies).flatten())
         evaluate_time = time.time() - start_time
         self.direct_log_scaler("evaluate",f"inference_time",current_step, evaluate_time)
-        self.direct_log_scaler("evaluate",f"inference_speed(s-per-step)-bs-{self.args.per_device_eval_batch_size}",current_step, evaluate_time/len(self.eval_dataloader))
-        self.direct_log_scaler("evaluate",f"inference_per_step_spend_time(step-per-s)-bs-{self.args.per_device_eval_batch_size}",current_step, len(self.eval_dataloader)/evaluate_time)
-        self.direct_log_scaler("evaluate",f"inference_example_per_second(example-per-s)",current_step, len(self.eval_dataloader) * self.args.per_device_eval_batch_size / evaluate_time) # 这几个计算和train还有一些不同，涉及到GPU的个数
+        self.direct_log_scaler("evaluate",f"inference_speed(s-per-step-per-gpu))-bs-{self.args.per_device_eval_batch_size}",current_step, evaluate_time/len(self.eval_dataloader))
+        self.direct_log_scaler("evaluate",f"inference_per_step_spend_time(step-per-s-per-gpu)-bs-{self.args.per_device_eval_batch_size}",current_step, len(self.eval_dataloader)/evaluate_time)
+        self.direct_log_scaler("evaluate",f"inference_example_per_second(example-per-s-per-gpu)",current_step, len(self.eval_dataloader) * self.args.per_device_eval_batch_size / evaluate_time) # 这几个计算和train还有一些不同，涉及到GPU的个数
         self.model.train()
         
     
@@ -286,11 +290,14 @@ class TrainerSelf():
                     one_answer_dic["origin answer"] = self.tokenizer.decode(batch["prediction_labels"][i])
                     answer.append(one_answer_dic)
         elif "bert" in self.model_name:
+            how_many_masks  = 0
+            how_many_right = 0
             for step, batch in enumerate(self.test_dataloader):
                 if step*self.args.per_device_test_batch_size > self.args.all_test_examples_num:
                     break
-                batch["input_ids"] = batch["input_ids"].to(self.accelerator.device)
-                batch["token_type_ids"] = batch["token_type_ids"].to(self.accelerator.device)
+                if not self.args.whether_hg_accelerator:
+                    batch["input_ids"] = batch["input_ids"].to(self.device)
+                    batch["token_type_ids"] = batch["token_type_ids"].to(self.device)
                 outputs = self.model(batch["input_ids"], token_type_ids=batch["token_type_ids"],labels = None)
                 b,t=batch["input_ids"].shape 
                 # logits shape [batch, sequence length, vocab_size]
@@ -311,11 +318,15 @@ class TrainerSelf():
                         if temp_input_ids[j] == self.tokenizer.mask_token_id:
                             temp_input_ids.pop(j)
                             temp_input_ids[j:j] = [left_bracket_index,batch["labels"][i][label_index][current_index],comma_index,temp_generated_text_ids[current_index],right_bracket_index]
+                            if batch["labels"][i][label_index][current_index] == temp_generated_text_ids[current_index]:
+                                how_many_right += 1
+                            how_many_masks += 1
                             current_index += 1
                             j += 4
                         j += 1
                     one_answer_dic["compared answer"] = self.tokenizer.decode(temp_input_ids)
                     answer.append(one_answer_dic)
+            self.direct_log_scaler("test", "accuracies", current_step, how_many_right/how_many_masks)
         else:
             Warning("Not Implement")
 
@@ -325,24 +336,31 @@ class TrainerSelf():
         return None
 
 
-    def average_log_scaler(self, stage, name, step, scalers, whether_print = True):
+    def average_log_scaler(self, stage, name, step, scalers, whether_print = True):  # 这里输入最好是tensor flatten的
         if (self.args.whether_hg_accelerator and self.accelerator.is_main_process) or (not self.args.whether_hg_accelerator):
-            
+            # print(scalers)
+            if isinstance(scalers, (list, tuple)): # list里面是一个二维tensor会导致无法转换
+                scalers = torch.tensor(scalers, dtype=torch.float32)
             to_log = torch.mean(scalers)
 
             if whether_print:
                 print(f"Stage {stage}, Step {step}: {name}={to_log.item()}")
             self.logger.log_scaler(f"{name}/{stage}", float(to_log.item()), step)
     
-    def direct_log_scaler(self, stage, name, step, scaler, whether_print = True):
+    def direct_log_scaler(self, stage, name, step, scaler, whether_print = True):  # 这里的输入最好是一个元素的tensor
         if (self.args.whether_hg_accelerator and self.accelerator.is_main_process) or (not self.args.whether_hg_accelerator):
             if isinstance(scaler, (list, tuple)):
-                scaler_to_print = scaler[0]
-            if isinstance(scaler, (torch.Tensor,np.ndarray)):
-                scaler_to_print = scaler[0].item()
+                scaler = scaler[0]
+            if isinstance(scaler, (torch.Tensor,np.ndarray)):  # 这里有一种可能是，scaler是一个tensor，但是这个tensor只有一个元素
+                if scaler.numel() == 1:
+                    scaler = scaler.item()
+                else:
+                    Warning("The scaler in direct log fuction is not a scaler")
+                    scaler = scaler[0].item()
+            
             if whether_print:
-                print(f"Stage {stage}, Step {step}: {name}={scaler_to_print}")
-            self.logger.log_scaler(f"{name}/{stage}", float(scaler_to_print), step)
+                print(f"Stage {stage}, Step {step}: {name}={scaler}")
+            self.logger.log_scaler(f"{name}/{stage}", float(scaler), step)
     
     def save_model(self, step):
         if (self.args.whether_hg_accelerator and self.accelerator.is_main_process) or (not self.args.whether_hg_accelerator):
@@ -452,7 +470,7 @@ class trainDetailTime:
     def end_optimizer(self,step):
         assert self.start_optimizer_time != -1
         self.end_optimizer_time = time.time()
-        self.trainer.direct_log_scaler(stage="train",name="optimizer-time",step=step,scaler=self.end_optimizer_time-self.start_optimizer_time,whether_print=False)
+        self.trainer.direct_log_scaler(stage="train",name="optimizer-time",step=step,scaler=self.end_optimizer_time-self.start_optimizer_time, whether_print=False)
         self.start_optimizer_time = -1
         self.end_optimizer_time = -1
     
@@ -465,9 +483,9 @@ class trainDetailTime:
         self.training_step_time_list.append(self.end_train_step_time-self.start_train_step_time)
         if len(self.training_step_time_list) == self.trainer.args.gradient_accumulation_steps:
             train_average_time =  torch.mean(torch.tensor(self.training_step_time_list))  # 一个梯度累积的时间
-            self.trainer.direct_log_scaler("train",f"accumulation_step_spends_second(s-per-step)-bs-{self.trainer.args.per_device_train_batch_size}",all_compute_grad_times, train_average_time)
-            step_per_second = self.trainer.args.gradient_accumulation_steps / train_average_time
-            self.trainer.direct_log_scaler("train",f"accumulation_step_per_second(step-per-s)-bs-{self.trainer.args.per_device_train_batch_size}",all_compute_grad_times, step_per_second)
+            self.trainer.direct_log_scaler("train",f"accumulation_step_spends_second(s-per-step)-bs-{self.trainer.args.per_device_train_batch_size}",all_compute_grad_times, train_average_time, whether_print=False)
+            step_per_second = self.trainer.args.gradient_accumulation_steps / train_average_time  # todo-这里要消除GPU个数的影响
+            self.trainer.direct_log_scaler("train",f"accumulation_step_per_second(step-per-s)-bs-{self.trainer.args.per_device_train_batch_size}",all_compute_grad_times, step_per_second, whether_print=False)
             example_per_second =  self.trainer.args.per_device_train_batch_size * self.trainer.args.gradient_accumulation_steps / train_average_time
             self.trainer.direct_log_scaler("train","train_example_per_second(example-per-s)",all_compute_grad_times, example_per_second) # 最核心关注速度指标，训练一个seque
             self.trainer.direct_log_scaler("train","epoch",all_compute_grad_times, epoch+step/len(self.trainer.train_dataloader))   
