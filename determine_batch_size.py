@@ -1,4 +1,4 @@
-def get_batch_size(model_size : str,model_type:str,sequence_length:int,use_cos:bool = False):  # 这个可能还要考虑SGD的影响
+def get_batch_size(model_size : str,model_type:str,sequence_length:int,use_cos:bool = False, use_reformer:bool= False):  # 这个可能还要考虑SGD的影响
     if model_size == "base":
         if model_type == "bert":
             if 128 == sequence_length:
@@ -7,6 +7,9 @@ def get_batch_size(model_size : str,model_type:str,sequence_length:int,use_cos:b
                 batch_size = 16
             elif 1024 == sequence_length:
                 batch_size = 8
+                # if use_reformer is True:
+                #     batch_size = 16
+                    # batch_size = 12
             elif 2048 == sequence_length:
                 batch_size = 2
             elif 4096 == sequence_length:

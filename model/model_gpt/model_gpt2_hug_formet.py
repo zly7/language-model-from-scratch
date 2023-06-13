@@ -362,7 +362,10 @@ class GPT(nn.Module):
     
     def save_pretrained(self, save_directory):
         import os
+        import json
         print(f"saving checkpoint to {save_directory}")
         if not os.path.exists(save_directory):
             os.mkdir(save_directory)
         torch.save(self.state_dict(), os.path.join(save_directory, 'pretrain_weight.pt'))
+        with open(os.path.join(save_directory, 'model_hyperparameter.json'), "w") as f:
+            json.dump(self.config.__dict__, f, indent=4)

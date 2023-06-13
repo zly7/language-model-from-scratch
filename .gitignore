@@ -25,6 +25,7 @@ model_save/
 
 /compare_bert
 /compare_gpt
+/reformer_bert_pretrain
 
 
 

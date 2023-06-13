@@ -5,13 +5,20 @@ from dataclasses import dataclass,field
 
 from .embedding import BERTEmbedding
 from ..backbone.modeling_outputs import MaskedLMOutput,BaseModelOutputWithPastAndCrossAttentions
-from ..backbone.bb_attention import CosformerAttention,BidirectionalSelfAttention,DirectMultiplyAttentionNotRight
+from ..backbone.bb_attention import CosformerAttention,BidirectionalSelfAttention,DirectMultiplyAttentionNotRight,Reformer
 from ..backbone.bb_basic import LayerNorm, new_gelu, MLP
 import torch
 from ..backbone.bb_config import LMconfig
 @dataclass
 class BertConfig(LMconfig):
     use_directmul:bool = field(default=False)
+    usr_lsh_hash:bool = field(default=False)
+    usr_repeat_time: int = field(default=5)
+    usr_topk: int = field(default=100)
+    usr_dim_multiplier: int = field(default=1)
+    n_lsh_hash:int = field(default=8)
+    common_lsh_bucket_size:int = field(default=64)
+    # common_lsh_n_hash:int = field(default=8)
     pass
 
 
@@ -58,6 +65,8 @@ class directMulBlock(nn.Module):
         return x
 
 
+
+
 class BERTEncoder(nn.Module):
     """
     BERT model : Bidirectional Encoder Representations from Transformers.
@@ -75,6 +84,8 @@ class BERTEncoder(nn.Module):
         super().__init__()
         # embedding for BERT, sum of positional, segment, token embeddings
         self.embedding = BERTEmbedding(vocab_size=config.vocab_size, embed_size=config.n_embd)
+        self.no_iterator_block = None
+        self.transformer_blocks = None
 
         # multi-layers transformer blocks, deep network
         if config.use_cosformer:
@@ -83,6 +94,12 @@ class BERTEncoder(nn.Module):
         elif config.use_directmul:
             self.transformer_blocks = nn.ModuleList(
                 [directMulBlock(config) for _ in range(config.n_layer)])
+        elif config.use_reformer:
+            reformer_instance = Reformer(dim=config.n_embd, usr_lsh_hash=config.usr_lsh_hash, usr_repeat_time=config.usr_repeat_time,
+                    usr_topk=config.usr_topk,usr_dim_multiplier=config.usr_dim_multiplier, depth=config.n_layer, heads=config.n_head, 
+                    n_hashes=config.n_lsh_hash,lsh_dropout=config.dropout, causal=False,
+                    bucket_size=config.common_lsh_bucket_size)
+            self.no_iterator_block = reformer_instance
         else:
             self.transformer_blocks = nn.ModuleList(
                 [BidirectionalBlock(config) for _ in range(config.n_layer)])
@@ -92,8 +109,11 @@ class BERTEncoder(nn.Module):
         x = self.embedding(x, segment_info)
 
         # running over multiple transformer blocks
-        for transformer in self.transformer_blocks:
-            x = transformer.forward(x, attn_mask = attn_mask)
+        if self.transformer_blocks is not None:
+            for transformer in self.transformer_blocks:
+                x = transformer.forward(x, attn_mask = attn_mask)
+        else:
+            x = self.no_iterator_block(x)
 
         return BaseModelOutputWithPastAndCrossAttentions(last_hidden_state=x)
 
@@ -139,10 +159,14 @@ class BertLM(nn.Module):
     
     def save_pretrained(self, save_directory):
         import os
+        import json
         print(f"saving checkpoint to {save_directory}")
         if not os.path.exists(save_directory):
             os.mkdir(save_directory)
         torch.save(self.state_dict(), os.path.join(save_directory, 'pretrain_weight.pt'))
+        with open(os.path.join(save_directory, 'model_hyperparameter.json'), "w") as f:
+            json.dump(self.config.__dict__, f, indent=4)
+
     
     # @classmethod
     # def from_pretrained(cls, override_args=None,model_hf=None):

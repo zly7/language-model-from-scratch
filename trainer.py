@@ -51,7 +51,7 @@ class TrainerSelf():
         if test_dataset is not None:
             test_dataset.set_format("torch") #zly: we don't use collate_fn for test which are not trauncated,这里实际上应该用
             self.test_dataloader = DataLoader(test_dataset, batch_size=args.per_device_test_batch_size, collate_fn=self.data_collator)
-            if self.args.test_dataloader_use_accelerate is True and self.args.whether_hg_accelerator:
+            if self.args.test_dataloader_use_accelerate is True and self.args.whether_hg_accelerator and (self.args.test_step is not None):
                 self.test_dataloader = self.accelerator.prepare(self.test_dataloader)
         else:
             self.test_dataloader = None
@@ -89,10 +89,13 @@ class TrainerSelf():
         self.logger = Logger(args.report_to,args.output_dir)
         self.model = self.model.to(self.device)
         if self.args.whether_hg_accelerator:
-            self.model, self.optimizer, self.lr_scheduler,self.train_dataloader,self.eval_dataloader = self.accelerator.prepare(model,
-                self.optimizer, self.lr_scheduler,self.train_dataloader, self.eval_dataloader)
             from accelerate.state import PartialState
             self.state = PartialState()
+            if self.state.is_main_process:
+                for name, param in self.model.named_parameters():
+                    print(name, param.shape)
+            self.model, self.optimizer, self.lr_scheduler,self.train_dataloader,self.eval_dataloader = self.accelerator.prepare(model,
+                self.optimizer, self.lr_scheduler,self.train_dataloader, self.eval_dataloader)
         else:
             self.state = None
         
@@ -100,6 +103,8 @@ class TrainerSelf():
         self.trainDetailTime = trainDetailTime(self)
         if args.resume_from_checkpoint is not None:
             self.accelerator.load_state(args.resume_from_checkpoint)
+        
+
 
 
         
@@ -122,7 +127,7 @@ class TrainerSelf():
                 outputs = self.forward_core(batch)
                 self.trainDetailTime.end_forward(all_compute_grad_times)
                 loss = outputs.loss # loss = outputs.loss loss = output[0] 都可以取到
-                losses.append(loss)
+                losses.append(float(loss)) 
                 accuracies.append(outputs.accuracy)
                 topkaccuracies.append(outputs.topkaccuracy)
                 loss = loss / self.args.gradient_accumulation_steps
@@ -163,7 +168,7 @@ class TrainerSelf():
                 self.trainDetailTime.end_train_step(all_compute_grad_times,epoch=epoch,step=step)
                 if all_compute_grad_times % self.args.save_steps == 1:
                     self.save_model(all_compute_grad_times)
-                if all_compute_grad_times % self.args.eval_steps == 1:
+                if all_compute_grad_times % self.args.eval_steps == 20:
                     self.evaluate(all_compute_grad_times)
                 if self.args.test_step is not None and all_compute_grad_times % self.args.test_step == 1:
                     self.test(all_compute_grad_times)
@@ -196,7 +201,7 @@ class TrainerSelf():
         losses = []
         accuracies = []
         topkccuracies = []
-        print("len(self.eval_dataloader)"+str(len(self.eval_dataloader)))
+        # print("len(self.eval_dataloader)"+str(len(self.eval_dataloader)))
         for step, batch in enumerate(self.eval_dataloader):
             if self.args.whether_hg_accelerator is False:
                 batch = {k: v.to(self.device) for k, v in batch.items()}
@@ -214,6 +219,9 @@ class TrainerSelf():
                     accuracies.append(outputs.accuracies.detach().cpu())
                 if outputs.topkaccuracy is not None:
                     topkccuracies.append(outputs.topkaccuracy)
+        
+        del batch
+        del outputs
         
         self.average_log_scaler("evaluate","loss",current_step, torch.stack(losses).flatten()) 
         if all(x is not None for x  in accuracies):
@@ -418,8 +426,10 @@ class TrainerSelf():
                 print(torch.cuda.memory_allocated(device)/1024**2, "MB allocated")
                 print(torch.cuda.memory_cached(device)/1024**2, "MB cached")
     
-    def get_grouped_params(self, no_decay=["bias", "LayerNorm.weight","ln"],weight_decay=0.01):
+    def get_grouped_params(self, no_decay=["bias", "LayerNorm.weight","ln","norm"],weight_decay=0.01):
+        from product_key_memory import fetch_pkm_value_parameters
         params_with_wd, params_without_wd = [], []
+        pkm_parameters, other_parameters = fetch_pkm_value_parameters(self.model)
         for n, p in self.model.named_parameters():
             if any(nd in n for nd in no_decay):
                 params_without_wd.append(p)
@@ -428,6 +438,7 @@ class TrainerSelf():
         return [
             {"params": params_with_wd, "weight_decay": weight_decay},
             {"params": params_without_wd, "weight_decay": 0.0},
+            {"params": pkm_parameters, "lr": 1e-2},
         ]
 
 

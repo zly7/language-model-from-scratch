@@ -1,7 +1,6 @@
 from dataclasses import dataclass,field
-
 @dataclass
-class LMconfig:
+class LMconfig():
     block_size: int = field(default=1024)
     vocab_size: int = field(default=50304)
     n_layer: int = field(default=12)
@@ -11,3 +10,4 @@ class LMconfig:
     bias: bool = field(default=False)
     use_cosformer: bool = field(default=False)
     use_SDPA : bool = field(default=False)
+    use_reformer: bool = field(default=False)

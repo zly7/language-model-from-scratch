@@ -98,7 +98,7 @@ class ModelOutput(OrderedDict):
             return self.to_tuple()[k]
 
     def __setattr__(self, name, value):
-        if name in super().keys() and value is not None: # 原本的super()是self
+        if name in super().keys() and value is not None: # 原本的super()是self，会爆没有keys这个函数的错误
             # Don't call self.__setitem__ to avoid recursion errors
             super().__setitem__(name, value)
         super().__setattr__(name, value)

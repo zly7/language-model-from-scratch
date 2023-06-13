@@ -47,10 +47,27 @@
             "console": "integratedTerminal",
             "justMyCode": true
         },{
-            "name": "test-lsh",
+            "name": "debug_reformer_bert",
             "type": "python",
             "request": "launch",
-            "args": ["test_lsh.py"], 
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config.yaml","train_reformer_bert.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },{
+            "name": "debug_reformer_bert_1GPU",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_1GPU.yaml","--main_process_port", "29501","train_reformer_bert.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },{
+            "name": "debug_reformer_usr_bert",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config.yaml","train_reformer_usr_bert.py"], 
             "console": "integratedTerminal",
             "justMyCode": true
         },
