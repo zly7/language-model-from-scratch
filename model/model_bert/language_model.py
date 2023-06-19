@@ -18,6 +18,7 @@ class BertConfig(LMconfig):
     usr_dim_multiplier: int = field(default=1)
     n_lsh_hash:int = field(default=8)
     common_lsh_bucket_size:int = field(default=64)
+    use_identity:bool = field(default=False)
     # common_lsh_n_hash:int = field(default=8)
     pass
 
@@ -64,7 +65,7 @@ class directMulBlock(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return x
 
-
+# class identityBlock()
 
 
 class BERTEncoder(nn.Module):

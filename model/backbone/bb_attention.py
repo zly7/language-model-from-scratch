@@ -20,6 +20,28 @@ from torch.nn import Identity
 
 from .reversible import ReversibleSequence
 
+class SlefAttetion(nn.Module):
+    def __init__(self,config) -> None:
+        super().__init__()
+        self.mlp_attention =  nn.Linear(config.dim,config.dim*3)
+        self.projection_out = nn.Linear(config.dim,config.dim)
+        self.scale = 1/(np.sqrt())
+    
+    def forward(self,x,attn_mask):
+        batch,sequence,dim = x.shape
+        device= x.device
+        qkv = self.mlp_attention(x)
+        q,k,v = torch.chunk(qkv,chunks=3,dim=-1)
+
+
+
+
+
+
+
+
+
+
 class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
