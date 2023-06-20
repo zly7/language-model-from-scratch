@@ -128,8 +128,8 @@ class TrainerSelf():
                 self.trainDetailTime.end_forward(all_compute_grad_times)
                 loss = outputs.loss # loss = outputs.loss loss = output[0] 都可以取到
                 losses.append(float(loss)) 
-                accuracies.append(outputs.accuracy)
-                topkaccuracies.append(outputs.topkaccuracy)
+                accuracies.append(float(outputs.accuracy))
+                topkaccuracies.append(float(outputs.topkaccuracy))
                 loss = loss / self.args.gradient_accumulation_steps
                 self.trainDetailTime.start_backward()
                 if self.args.whether_hg_accelerator:
