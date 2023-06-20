@@ -128,8 +128,12 @@ class TrainerSelf():
                 self.trainDetailTime.end_forward(all_compute_grad_times)
                 loss = outputs.loss # loss = outputs.loss loss = output[0] 都可以取到
                 losses.append(float(loss)) 
-                accuracies.append(float(outputs.accuracy))
-                topkaccuracies.append(float(outputs.topkaccuracy))
+                if hasattr(outputs,'accuracy') and hasattr(outputs,'topkaccuracy'):
+                    accuracies.append(float(outputs.accuracy))
+                    topkaccuracies.append(float(outputs.topkaccuracy))
+                else:
+                    accuracies.append(0.0)
+                    topkaccuracies.append(0.0)
                 loss = loss / self.args.gradient_accumulation_steps
                 self.trainDetailTime.start_backward()
                 if self.args.whether_hg_accelerator:
@@ -190,6 +194,8 @@ class TrainerSelf():
             return self.model(batch["input_ids"], autoShiftLeftAndTrain=True)
         elif "self" in self.model_name and "bert" in self.model_name:
             return self.model(batch["input_ids"], labels =batch["labels"],token_type_ids=batch["token_type_ids"])
+        elif "huggingface" in self.model_name and "reformer" in self.model_name:
+            return self.model(batch["input_ids"], labels=batch["labels"])
         else :
             Warning("Not Implement")
             return None
@@ -200,7 +206,7 @@ class TrainerSelf():
         self.model.eval()
         losses = []
         accuracies = []
-        topkccuracies = []
+        topkaccuracies = []
         # print("len(self.eval_dataloader)"+str(len(self.eval_dataloader)))
         for step, batch in enumerate(self.eval_dataloader):
             if self.args.whether_hg_accelerator is False:
@@ -209,16 +215,20 @@ class TrainerSelf():
                 outputs = self.forward_core(batch)
             if self.args.whether_hg_accelerator:
                 losses.append(self.accelerator.gather(outputs.loss))
-                if outputs.accuracy is not None:
+                if hasattr(outputs,'accuracy') and outputs.accuracy is not None:
                     accuracies.append(self.accelerator.gather(outputs.accuracy)) # gather 之后获得的是一个tensor组
-                if outputs.topkaccuracy is not None:
-                    topkccuracies.append(self.accelerator.gather(outputs.topkaccuracy))
+                else:
+                    accuracies.append(torch.zeros(size=(1,0)))
+                if hasattr(outputs,'topkaccuracy') and outputs.topkaccuracy is not None:
+                    topkaccuracies.append(self.accelerator.gather(outputs.topkaccuracy))
+                else:
+                    topkaccuracies.append(torch.zeros(size=(1,0)))
             else:
                 losses.append(outputs.loss.detach().cpu())
                 if outputs.accuracy is not None:
                     accuracies.append(outputs.accuracies.detach().cpu())
                 if outputs.topkaccuracy is not None:
-                    topkccuracies.append(outputs.topkaccuracy)
+                    topkaccuracies.append(outputs.topkaccuracy)
         
         del batch
         del outputs
@@ -226,8 +236,8 @@ class TrainerSelf():
         self.average_log_scaler("evaluate","loss",current_step, torch.stack(losses).flatten()) 
         if all(x is not None for x  in accuracies):
             self.average_log_scaler("evaluate","accuracies",current_step,torch.stack(accuracies).flatten())
-        if all(x is not None for x  in topkccuracies):
-            self.average_log_scaler("evaluate","topkaccuracies",current_step, torch.stack(topkccuracies).flatten())
+        if all(x is not None for x  in topkaccuracies):
+            self.average_log_scaler("evaluate","topkaccuracies",current_step, torch.stack(topkaccuracies).flatten())
         evaluate_time = time.time() - start_time
         self.direct_log_scaler("evaluate",f"inference_time",current_step, evaluate_time)
         self.direct_log_scaler("evaluate",f"inference_speed(s-per-step-per-gpu))-bs-{self.args.per_device_eval_batch_size}",current_step, evaluate_time/len(self.eval_dataloader))

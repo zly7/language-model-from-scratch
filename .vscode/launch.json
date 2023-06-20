@@ -70,6 +70,14 @@
             "args": ["--config_file","acce_config.yaml","train_reformer_usr_bert.py"], 
             "console": "integratedTerminal",
             "justMyCode": true
+        },{
+            "name": "debug_hug_reformer",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_1GPU.yaml","train_hug_reformer.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
         },
     ]
 }

@@ -27,6 +27,9 @@ def get_batch_size(model_size : str,model_type:str,sequence_length:int,use_cos:b
                 batch_size = 2
             elif 4096 == sequence_length:
                 batch_size = 1
+        elif "reformer" in model_type:
+            if 1024 == sequence_length:
+                batch_size = 16
         else:
             raise ValueError("model_type error")
     elif True:

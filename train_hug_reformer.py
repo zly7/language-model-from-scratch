@@ -1,34 +1,34 @@
-# 对应model-gpt2-hug-format
+# 对应huggingface 版本的reformer，现在先尝试跑一下，看这个的训练效果
 
 from datasets import load_dataset, DatasetDict, load_from_disk
 import torch
 from determine_batch_size import get_batch_size
 def main():
     print("Loading dataset")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-gpt2-story-train512-test256")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
     print("train length :", len(preprocessed_splits["train"]))
     sequence_length = 1024
-    from transformers import ReformerTokenizer
-    tokenizer = ReformerTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-gpt2-{sequence_length}")
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     tokenizer.eos_token_id = tokenizer.pad_token_id
     from transformers import ReformerConfig,DataCollatorForLanguageModeling
-    config = ReformerConfig(vocab_size=tokenizer.vocab_size, n_embd=768, 
-                n_layer=12, n_head=12)
+    config = ReformerConfig(vocab_size=tokenizer.vocab_size, num_attention_heads=12,attention_head_size=64, 
+             attn_layers=['local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh',],
+             feed_forward_size=768*4,axial_pos_shape=[32,32],axial_pos_embds_dim=[256,512],hidden_size=768)
  
-    from transformers import GPT2LMHeadModel
-    model = GPT2LMHeadModel(config)
-    # model.load_state_dict(torch.load("./hug_gpt_train_self/03-30-17-03/checkpoint-20001/pretrain_weight.pt"))
-    data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
+    from transformers import ReformerModelWithLMHead,ReformerForMaskedLM
+    model = ReformerForMaskedLM(config)
+    data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=True, mlm_probability=0.15)
     from TrainArgumentSelf import TrainingArgumentsSelf
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
     gradient_ac = 12
-    batch_size = get_batch_size("base","gpt",sequence_length)
+    batch_size = get_batch_size("base","reformer",sequence_length)
     # max_steps = 13000*5 * gradient_ac
     max_steps = 5e5
     args = TrainingArgumentsSelf(
-        output_dir=f"hug_gpt_pretrain/{date_string}/",
+        output_dir=f"hug_re_pretrain/{date_string}/",
         per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=batch_size * 2,
         eval_steps=1000 * gradient_ac,
@@ -59,7 +59,7 @@ def main():
     )
     from trainer import TrainerSelf
     trainer = TrainerSelf(
-        model_name="huggingface gpt",
+        model_name="huggingface reformer",
         model=model,
         tokenizer=tokenizer,
         args=args,
