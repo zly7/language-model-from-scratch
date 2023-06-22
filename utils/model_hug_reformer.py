@@ -17,7 +17,7 @@ input_ids = torch.randint(high=320, size=(batch_size, sequence_length),device=de
 configuration = ReformerConfig(vocab_size=320, num_attention_heads=12,attention_head_size=64, 
              attn_layers=['local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local',
              'lsh','local','lsh',],
-             feed_forward_size=768*4,axial_pos_shape=[32,32],axial_pos_embds_dim=[256,512],hidden_size=768,num_hashes=1,is_decoder=True,num_buckets=32)
+             feed_forward_size=768*4,axial_pos_shape=[32,32],axial_pos_embds_dim=[256,512],hidden_size=768,num_hashes=1,is_decoder=True,num_buckets=32,whether_use_tree_attention=True)
 print(configuration)
 
 # Initializing a Reformer model (with random weights)
