@@ -15,7 +15,7 @@ class TrainerSelf():
     def __init__(self, model_name, model, args : TrainingArgumentsSelf, train_dataset, eval_dataset, test_dataset=None,
         tokenizer=None, data_collator=None,
         optimizer: Optional[torch.optim.Optimizer]=None, 
-        lr_scheduler: Optional[torch.optim.lr_scheduler.LambdaLR]=None):
+        lr_scheduler: Optional[torch.optim.lr_scheduler.LambdaLR]=None,compute_metrics = None):
 
         self.model_name = model_name
         self.model = model
@@ -26,6 +26,7 @@ class TrainerSelf():
         self.data_collator = data_collator
         self.train_dataset = train_dataset
         self.eval_dataset = eval_dataset
+        self.compute_metrics = compute_metrics
         # if self.frame == "pytorch": # 这个没意义
 
 
@@ -81,7 +82,7 @@ class TrainerSelf():
                     args.max_steps = len(self.train_dataloader) * args.num_train_epochs / args.gradient_accumulation_steps
                 self.lr_scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=args.max_steps // args.gradient_accumulation_steps)
                 print("lr_schdule_step: " + str(args.max_steps // args.gradient_accumulation_steps) )
-            elif self.args.lr_scheduler_type == "constant":
+            elif self.args.lr_scheduler_type == "constant" or self.args.lr_scheduler_type == "fixed":
                 self.lr_scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,100,gamma=1)
         else:
             self.lr_scheduler = lr_scheduler
@@ -131,6 +132,9 @@ class TrainerSelf():
                 if hasattr(outputs,'accuracy') and hasattr(outputs,'topkaccuracy'):
                     accuracies.append(float(outputs.accuracy))
                     topkaccuracies.append(float(outputs.topkaccuracy))
+                elif self.compute_metrics is not None:
+                    accuracies.append(self.compute_metrics(outputs.logits, batch["labels"])["accuracy"])
+                    topkaccuracies.append(0.0)
                 else:
                     accuracies.append(0.0)
                     topkaccuracies.append(0.0)
@@ -217,6 +221,9 @@ class TrainerSelf():
                 losses.append(self.accelerator.gather(outputs.loss))
                 if hasattr(outputs,'accuracy') and outputs.accuracy is not None:
                     accuracies.append(self.accelerator.gather(outputs.accuracy)) # gather 之后获得的是一个tensor组
+                elif self.compute_metrics is not None:
+                    accuracies.append(self.compute_metrics(self.accelerator.gather(outputs.logits),
+                         self.accelerator.gather(batch["labels"]))['accuracy'])
                 else:
                     accuracies.append(torch.zeros(size=(1,0)))
                 if hasattr(outputs,'topkaccuracy') and outputs.topkaccuracy is not None:

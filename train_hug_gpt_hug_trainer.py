@@ -54,7 +54,7 @@ def main():
         report_to="tensorboard",
     )
     trainer = Trainer(model=model, args=args, train_dataset=preprocessed_splits["train"], 
-            eval_dataset=preprocessed_splits["validation"], tokenizer=tokenizer,data_collator=data_collator)
+            eval_dataset=preprocessed_splits["validation"], tokenizer=tokenizer,data_collator=data_collator,compute_metrics=None)
     trainer.train()
 
 

@@ -1,23 +1,36 @@
-# 对应huggingface 版本的reformer，现在先尝试跑一下，看这个的训练效果
+# 对应huggingface 版本的reformer，现在先尝试跑一下，看这个的训练效果,主要是换成这种char token的方式
 
 from datasets import load_dataset, DatasetDict, load_from_disk
 import torch
 from determine_batch_size import get_batch_size
 def main():
     print("Loading dataset")
-    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
+    preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-chartoken-bert-8196")
     print("train length :", len(preprocessed_splits["train"]))
-    sequence_length = 1024
+    sequence_length = 8196
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
+    tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/byt5-tokenizer")
     tokenizer.eos_token_id = tokenizer.pad_token_id
+    mask_token = '<mask>'
+    tokenizer.add_tokens(mask_token)
+    tokenizer.mask_token = mask_token
+    tokenizer.mask_token_id = tokenizer.convert_tokens_to_ids(mask_token)
     from transformers import ReformerConfig,DataCollatorForLanguageModeling
-    config = ReformerConfig(vocab_size=tokenizer.vocab_size, num_attention_heads=12,attention_head_size=64, 
+    # config = ReformerConfig(vocab_size=len(tokenizer), num_attention_heads=12,attention_head_size=64, 
+    #          attn_layers=['local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh',],
+    #          feed_forward_size=768*4,axial_pos_shape=[64,128],axial_pos_embds_dim=[256,512],hidden_size=768,num_buckets=32,max_position_embeddings=8196)
+    # config = ReformerConfig(vocab_size=tokenizer.vocab_size, num_attention_heads=8,attention_head_size=128,  # 这个参数要爆显存的
+    #         attn_layers=['local','local','lsh','local','local','local','lsh','local','local','local','lsh','local','local','local','lsh','local',],
+    #         feed_forward_size=1024*4,axial_pos_shape=[64,128],axial_pos_embds_dim=[256,768],hidden_size=1024,num_buckets=32,
+    #         whether_use_tree_attention=True,num_hashes=4,max_position_embeddings=8196)
+    config = ReformerConfig(vocab_size=len(tokenizer), num_attention_heads=12,attention_head_size=64, 
              attn_layers=['local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh',],
-             feed_forward_size=768*4,axial_pos_shape=[32,32],axial_pos_embds_dim=[256,512],hidden_size=768,num_buckets=32)
+             feed_forward_size=768*4,axial_pos_shape=[64,128],axial_pos_embds_dim=[256,512],hidden_size=768,num_buckets=32,max_position_embeddings=8196)
  
     from transformers import ReformerModelWithLMHead,ReformerForMaskedLM
     model = ReformerForMaskedLM(config)
+    model_size = sum(t.numel() for t in model.parameters())
+    print(f"Bert-reformer-tree-attention size: {model_size/1000**2:.1f}M parameters")
     data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=True, mlm_probability=0.15)
     from TrainArgumentSelf import TrainingArgumentsSelf
     import datetime
@@ -28,8 +41,8 @@ def main():
     # max_steps = 13000*5 * gradient_ac
     max_steps = 5e5
     args = TrainingArgumentsSelf(
-        output_dir=f"hug_re_pretrain/{date_string}/",
-        per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
+        output_dir=f"hug_re_pretrain_chartoken/{date_string}/",
+        per_device_train_batch_size=8,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=batch_size * 2,
         eval_steps=1000 * gradient_ac,
         logging_steps=20 * gradient_ac,
@@ -42,7 +55,7 @@ def main():
         adam_beta2 = 0.999,
         # adam_epsilon = 1e-6,
         adam_epsilon= 1e-8,
-        warmup_steps= 1000,
+        warmup_steps= 1000,  # 这里还是没明白为什么warmup_steps 最后表现出来是4000
         lr_scheduler_type="cosine",
         # lr_scheduler_type="constant",
         # learning_rate=1e-4,

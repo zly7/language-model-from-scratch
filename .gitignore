@@ -8,6 +8,7 @@
 /utils/wikitext-*
 *.arrow
 /out_dir
+/out_dir*
 **/__pycache__
 model_save/
 *.pt
@@ -27,5 +28,8 @@ model_save/
 /compare_gpt
 /reformer_bert_pretrain
 /hug_re_pretrain
+/hug_re_pretrain_chartoken
+
+
 
 

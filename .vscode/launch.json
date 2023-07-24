@@ -78,6 +78,39 @@
             "args": ["--config_file","acce_config_1GPU.yaml","train_hug_reformer.py"], 
             "console": "integratedTerminal",
             "justMyCode": true
+        },{
+            "name": "debug_hug_tree_attention_reformer_2GPU",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config.yaml","train_hug_reformer_tree_attention.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },{
+            "name": "debug_hug_tree_attention_reformer_1GPU",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_1GPU.yaml","train_hug_reformer_tree_attention.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },{
+            "name": "debug_hug_chartoken_reformer_1GPU",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_1GPU.yaml","train_hug_reformer_char_token.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },{
+            "name": "debug_hug_chartoken_reformer_CPU",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_CPU.yaml","train_hug_reformer_char_token.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {"CUDA_VISIBLE_DEVICES": ""}
         },
     ]
 }

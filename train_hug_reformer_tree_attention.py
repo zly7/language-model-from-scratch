@@ -3,6 +3,7 @@
 from datasets import load_dataset, DatasetDict, load_from_disk
 import torch
 from determine_batch_size import get_batch_size
+from compute_metrics import compute_metrics_for_masklm
 def main():
     print("Loading dataset")
     preprocessed_splits = load_from_disk("./processed_datadir/wikitext-103-story-bert-1024")
@@ -12,9 +13,15 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(f"./tokenizer_save/tokenizer-bert-base-uncased-{sequence_length}")
     tokenizer.eos_token_id = tokenizer.pad_token_id
     from transformers import ReformerConfig,DataCollatorForLanguageModeling
-    config = ReformerConfig(vocab_size=tokenizer.vocab_size, num_attention_heads=12,attention_head_size=64, 
-             attn_layers=['local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh',],
-             feed_forward_size=768*4,axial_pos_shape=[32,32],axial_pos_embds_dim=[256,512],hidden_size=768,num_buckets=32)
+    # config = ReformerConfig(vocab_size=tokenizer.vocab_size, num_attention_heads=12,attention_head_size=64, 
+    #          #attn_layers=['local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh','local','lsh',],
+    #          attn_layers=['lsh'],
+    #          feed_forward_size=768*4,axial_pos_shape=[32,32],axial_pos_embds_dim=[256,512],hidden_size=768,num_buckets=32,
+    #          whether_use_tree_attention=True,num_hashes=4)
+    config = ReformerConfig(vocab_size=tokenizer.vocab_size, num_attention_heads=8,attention_head_size=128, 
+             attn_layers=['local','local','lsh','local','local','local','lsh','local','local','local','lsh','local','local','local','lsh','local',],
+             feed_forward_size=1024*4,axial_pos_shape=[32,32],axial_pos_embds_dim=[256,768],hidden_size=1024,num_buckets=32,
+             whether_use_tree_attention=True,num_hashes=4)
  
     from transformers import ReformerModelWithLMHead,ReformerForMaskedLM
     model = ReformerForMaskedLM(config)
@@ -23,12 +30,18 @@ def main():
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
-    gradient_ac = 12
-    batch_size = get_batch_size("base","reformer",sequence_length)
-    # max_steps = 13000*5 * gradient_ac
-    max_steps = 5e5
+
+    if config.hidden_size == 1024:
+        batch_size = get_batch_size("large","reformer",sequence_length)
+        gradient_ac = 8
+    elif config.hidden_size == 768:
+        batch_size = get_batch_size("base","reformer",sequence_length)
+        gradient_ac = 12
+    else:
+        raise ValueError("hidden_size error")
+    max_steps = 5e5  
     args = TrainingArgumentsSelf(
-        output_dir=f"hug_re_pretrain/{date_string}/",
+        output_dir=f"hug_re_pretrain/tree-{date_string}/",
         per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=batch_size * 2,
         eval_steps=1000 * gradient_ac,
@@ -67,7 +80,8 @@ def main():
         data_collator=data_collator,
         train_dataset=preprocessed_splits["train"],
         eval_dataset=preprocessed_splits["validation"],
-        test_dataset=preprocessed_splits["test"]
+        test_dataset=preprocessed_splits["test"],
+        compute_metrics=compute_metrics_for_masklm,
     )
     print("Training model starts test for weight decay parameter")
     trainer.train()
