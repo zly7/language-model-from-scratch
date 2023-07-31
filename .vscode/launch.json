@@ -111,6 +111,14 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "env": {"CUDA_VISIBLE_DEVICES": ""}
-        },
+        },{
+            "name": "debug_hug_chartoken_reformer_1GPU_gpt_tree_attention",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_1GPU.yaml","train_hug_reformer_gpt_char_token_tree_attention.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
     ]
 }

@@ -23,10 +23,15 @@ def get_batch_size(model_size : str,model_type:str,sequence_length:int,use_cos:b
                     batch_size = 4
             elif 1024 == sequence_length:
                 batch_size = 6
-            elif 2048 == sequence_length:
+            elif 2048 == sequence_length:  # 这个真的只能是2，不然显存不够
                 batch_size = 2
             elif 4096 == sequence_length:
                 batch_size = 1
+            else:
+                raise ValueError("sequence_length error")
+        elif "reformer" and "gpt" in model_type:
+            if 2048 == sequence_length:
+                batch_size = 2
             else:
                 raise ValueError("sequence_length error")
         elif "reformer" in model_type:
@@ -39,8 +44,17 @@ def get_batch_size(model_size : str,model_type:str,sequence_length:int,use_cos:b
         else:
             raise ValueError("model_type error")
     elif model_size == "large":
-        if "reformer" in model_type:
+        if "reformer" in model_type and "gpt" in model_type:
+            if 2048 == sequence_length:
+                batch_size = 2
+            else:
+                raise ValueError("sequence_length error")
+        elif "reformer" in model_type:
             if 1024 == sequence_length:
                 batch_size = 8
+            elif 2048 == sequence_length:
+                batch_size = 4
+            else:
+                raise ValueError("sequence_length error")
     
     return batch_size

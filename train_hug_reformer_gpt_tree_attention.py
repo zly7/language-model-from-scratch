@@ -23,13 +23,13 @@ def main():
              attn_layers=['local','local','lsh','local','local','local','lsh','local','local','local','lsh','local','local','local','lsh','local',],
             #  attn_layers=['lsh',],
              feed_forward_size=1024*4,axial_pos_shape=[32,64],axial_pos_embds_dim=[256,768],hidden_size=1024,num_buckets=32,
-             whether_use_tree_attention=True,num_hashes=4)
+             whether_use_tree_attention=True,num_hashes=4,is_decoder=True)
  
     from transformers import ReformerModelWithLMHead,ReformerForMaskedLM
-    model = ReformerForMaskedLM(config)
+    model = ReformerModelWithLMHead(config)
     model_size = sum(t.numel() for t in model.parameters())
     print(f"gpt-reformer-tree-attention size: {model_size/1000**2:.1f}M parameters")
-    data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=True, mlm_probability=0.15)
+    data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
     from TrainArgumentSelf import TrainingArgumentsSelf
     import datetime
     now = datetime.datetime.now()
@@ -45,7 +45,7 @@ def main():
         raise ValueError("hidden_size error")
     max_steps = 10e5  
     args = TrainingArgumentsSelf(
-        output_dir=f"hug_re_pretrain/new_data_tree-{date_string}/",
+        output_dir=f"hug_re_pretrain_gpt/new_data_tree-{date_string}/",
         per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=batch_size * 2,
         eval_steps=1000 * gradient_ac,

@@ -23,12 +23,16 @@ model_save/
 /speed_test
 *.0
 /cos_bert_pretrain
+/hug_re_pretrain_gpt
 
 /compare_bert
 /compare_gpt
 /reformer_bert_pretrain
 /hug_re_pretrain
 /hug_re_pretrain_chartoken
+/hug_re_pretrain_chartoken_gpt
+/processed_datadir2/*/*
+!/processed_datadir2/*/*.ipynb
 
 
 
