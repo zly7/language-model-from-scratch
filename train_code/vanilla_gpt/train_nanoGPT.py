@@ -1,12 +1,16 @@
 # 对应model-gpt2-hug-format
 
 from datasets import load_dataset, DatasetDict, load_from_disk
-from determine_batch_size import get_batch_size
 import torch
+import os
+import sys
 def main():
+    root_path = os.path.abspath(os.path.join(os.path.join(os.path.dirname(__file__), ".."), ".."))
+    sys.path.append(root_path)
+    print("root_path",root_path)
     print("Loading dataset")
     # tokenizer 就是bert的tokenizer，不用gpt
-    data_set_path = "./processed_datadir2/wikitext-103-story-chartoken-bert-2048"
+    data_set_path = os.path.join(root_path,"processed_datadir2/wikitext-103-story-bert-2048")
     preprocessed_splits = load_from_disk(data_set_path)
     sequence_length = 2048
     print("train length :", len(preprocessed_splits["train"]))
@@ -14,10 +18,11 @@ def main():
     # print("preprocessed_splits test : ", len(preprocessed_splits["test"][0]))
     from model.model_gpt.model_gpt2_hug_formet import GPT, GPTConfig
     from transformers import GPT2Tokenizer
-    tokenizer = GPT2Tokenizer.from_pretrained(f"./tokenizer_save/tokenizer-gpt2-{sequence_length}")
+    tokenizer_path = os.path.join(root_path,f"tokenizer_save/tokenizer-gpt2-{sequence_length}")
+    tokenizer = GPT2Tokenizer.from_pretrained(tokenizer_path)
     print("vocab_size for GPT2",str(len(tokenizer)))
     config = GPTConfig(vocab_size=tokenizer.vocab_size, n_embd=768, 
-                n_layer=12, n_head=12, dropout=0.1, use_cosformer=False)
+                n_layer=12, n_head=12, dropout=0.1, use_cosformer=False,block_size=sequence_length)
 
     model = GPT(config)
     # model.load_state_dict(torch.load("./hug_gpt_train_self/03-30-17-03/checkpoint-20001/pretrain_weight.pt"))
@@ -27,8 +32,9 @@ def main():
     import datetime
     now = datetime.datetime.now()
     date_string = now.strftime("%m-%d-%H-%M")
+    from determine_batch_size import get_batch_size
     batch_size = get_batch_size("base","gpt",sequence_length)
-    graient_ac = 12
+    gradient_ac = 12
     if config.n_embd == 1024:
         batch_size = get_batch_size("large","reformer gpt",sequence_length)
         gradient_ac = 8
@@ -41,12 +47,12 @@ def main():
     print("one_node_device_num:",device_num)
     Warning("The all gradient ac is about one node,if you use multi node,please decrease the all_gradient_ac")
     assert device_num >= 1
-    gradient_ac = graient_ac // device_num
+    gradient_ac = gradient_ac // device_num
     max_steps = 10e5
     args = TrainingArgumentsSelf(
         # output_dir=f"vanilla_gpt_pretrain/{date_string}/",
         # output_dir=f"./compare_gpt/vanilla_{date_string}/",
-        output_dir=f"hug_re_pretrain_gpt/new_data_vanilla-{date_string}/",
+        output_dir=os.path.join(root_path,f"hug_re_pretrain_gpt/new_data_vanilla-{date_string}/"),
         per_device_train_batch_size=batch_size,   # 16的时候，训练只消耗17.5G显存,24bacth消耗23G,不使用混合精度训练反而24batch还没法用了， 
         per_device_eval_batch_size=batch_size * 2,
         eval_steps=1000 * gradient_ac,
