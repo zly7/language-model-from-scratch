@@ -10,7 +10,7 @@ def main():
     sys.path.append(root_path)
     print("root_path",root_path)
     print("Loading dataset")
-    data_set_path = os.path.join(root_path,"processed_datadir2/wikitext-103-story-bert-2048")
+    data_set_path = os.path.join(root_path,"processed_datadir2/wikitext-103-story-gpt2-2048")
     preprocessed_splits = load_from_disk(data_set_path)
     print("train length :", len(preprocessed_splits["train"]))
     sequence_length = 2048

@@ -23,7 +23,7 @@ def get_batch_size(model_size : str,model_type:str,sequence_length:int,use_cos:b
                     batch_size = 4
             elif 1024 == sequence_length:
                 batch_size = 6
-            elif 2048 == sequence_length:  # 这个真的只能是2，不然显存不够
+            elif 2048 == sequence_length:  # 这个真的只能是2，不然显存不够，使用fp16，然后adafactor 也不能提升到3
                 batch_size = 2
             elif 4096 == sequence_length:
                 batch_size = 1
@@ -41,6 +41,16 @@ def get_batch_size(model_size : str,model_type:str,sequence_length:int,use_cos:b
                 batch_size = 8
             else:
                 raise ValueError("sequence_length error")
+        elif "retnet" in model_type:
+            if 512 == sequence_length:
+                batch_size = 16
+            elif 1024 == sequence_length:
+                batch_size = 8
+            elif 2048 == sequence_length:
+                # batch_size = 4
+                batch_size = 2
+            else:
+                raise ValueError("sequence_length error")
         else:
             raise ValueError("model_type error")
     elif model_size == "large":
@@ -54,6 +64,13 @@ def get_batch_size(model_size : str,model_type:str,sequence_length:int,use_cos:b
                 batch_size = 8
             elif 2048 == sequence_length:
                 batch_size = 4
+            else:
+                raise ValueError("sequence_length error")
+        elif "retnet" in model_type:
+            if 1024 == sequence_length:
+                batch_size = 4
+            elif 2048 == sequence_length:
+                batch_size = 2
             else:
                 raise ValueError("sequence_length error")
     

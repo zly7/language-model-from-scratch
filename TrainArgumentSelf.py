@@ -24,6 +24,7 @@ class TrainingArgumentsSelf(TrainingArguments):
 
     #         self.per_device_test_batch_size = per_device_test_batch_size
     #         self.all_test_examples_num = all_test_examples_num
+    # gradient_ac:int = field(default = None)  # 这个参数有
     test_step:int = field(default=None)
     train_audit_probability:float = field(default=0.0)
     test_dataloader_use_accelerate:bool = field(default=True)
@@ -34,8 +35,11 @@ class TrainingArgumentsSelf(TrainingArguments):
     sgd_momentum:float = field(default=0.9)
     sequence_length:int = field(default=512)
     data_set_path:str = field(default="this is to describe the used dataset")
+
     def __post_init__(self):
         super().__post_init__()
+        # if self.gradient_ac == None:
+        #     raise ValueError("TrainingArgumentsSelf Must record gradient_ac")
         if self.max_steps is not None:
             self.num_train_epochs = 10000
             Warning("max_steps is not None, so num_train_epochs will be 10000, which is useless")

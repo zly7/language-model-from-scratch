@@ -70,6 +70,14 @@ class TrainerSelf():
                 from torch.optim import AdamW
                 self.optimizer = AdamW(self.get_grouped_params(weight_decay=args.weight_decay), 
                     lr=args.learning_rate, weight_decay=args.weight_decay, betas=[args.adam_beta1,args.adam_beta2],eps=args.adam_epsilon)
+            elif self.args.optimizer_type == "adafactor_transformers":
+                from transformers import Adafactor
+                self.optimizer = Adafactor(self.get_grouped_params(weight_decay=args.weight_decay), 
+                    lr=args.learning_rate, weight_decay=args.weight_decay, scale_parameter=False,relative_step=False)
+            elif self.args.optimizer_type == "adafactor_fairscale":
+                raise ValueError("Not implement")
+            else:
+                raise ValueError("Not implement")
         else:
             self.optimizer = optimizer
 
@@ -129,7 +137,7 @@ class TrainerSelf():
                 self.trainDetailTime.end_forward(all_compute_grad_times)
                 loss = outputs.loss # loss = outputs.loss loss = output[0] 都可以取到
                 losses.append(float(loss)) 
-                if hasattr(outputs,'accuracy') and hasattr(outputs,'topkaccuracy'):
+                if hasattr(outputs,'accuracy') and hasattr(outputs,'topkaccuracy') and outputs.accuracy is not None and outputs.topkaccuracy is not None:
                     accuracies.append(float(outputs.accuracy))
                     topkaccuracies.append(float(outputs.topkaccuracy))
                 elif self.compute_metrics is not None:
@@ -191,6 +199,10 @@ class TrainerSelf():
         self.save_model(all_compute_grad_times)
     
     def forward_core(self, batch):
+        # if batch["input_ids"].dtype not in (torch.int32, torch.int64):  # 这里这种检查显然没必要，如果不对就是其他地方代码不对
+        #     batch["input_ids"] = batch["input_ids"].long()
+        # if batch["labels"].dtype not in (torch.int32, torch.int64):
+        #     batch["labels"] = batch["labels"].long()
         if "huggingface" in self.model_name and "gpt" in self.model_name:
             assert torch.equal(batch["input_ids"], batch["labels"])
             return self.model(batch["input_ids"], labels=batch["labels"])
@@ -200,6 +212,8 @@ class TrainerSelf():
             return self.model(batch["input_ids"], labels =batch["labels"],token_type_ids=batch["token_type_ids"])
         elif "huggingface" in self.model_name and "reformer" in self.model_name:
             return self.model(batch["input_ids"], labels=batch["labels"])
+        elif "retnet" in self.model_name:
+            return self.model(batch["input_ids"], autoShiftLeftAndTrain=True)
         else :
             Warning("Not Implement")
             return None

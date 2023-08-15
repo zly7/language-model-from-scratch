@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "module": "accelerate.commands.launch",
-            "args": ["--config_file","acce_config_1GPU.yaml","train_nanoGPT.py"], 
+            "args": ["--config_file","acce_config_1GPU.yaml","train_code/vanilla_gpt/train_nanoGPT.py"], 
             "console": "integratedTerminal",
             "justMyCode": false
         },
@@ -117,6 +117,14 @@
             "request": "launch",
             "module": "accelerate.commands.launch",
             "args": ["--config_file","acce_config_1GPU.yaml","train_hug_reformer_gpt_char_token_tree_attention.py"], 
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },{
+            "name": "new_debug_retnet",
+            "type": "python",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": ["--config_file","acce_config_1GPU.yaml","train_code/retnet/train_retnet_gpt.py"], 
             "console": "integratedTerminal",
             "justMyCode": true
         }
